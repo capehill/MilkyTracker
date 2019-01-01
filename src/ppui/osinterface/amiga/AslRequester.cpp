@@ -20,6 +20,8 @@
  *
  */
 
+#ifdef __amigaos4__
+
 // This is a common file requester for both load / save functions
 
 #include "AslRequester.h"
@@ -139,4 +141,6 @@ PPSystemString GetFileName(CONST_STRPTR title, bool saveMode, CONST_STRPTR name)
 
     return fileName;
 }
+
+#endif
 

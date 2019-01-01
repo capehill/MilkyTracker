@@ -19,6 +19,8 @@
  *  along with Milkytracker.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
+#ifdef __amigaos4__
  
 #include "PPSavePanel.h"
 #include "AslRequester.h"
@@ -45,3 +47,6 @@ PPSavePanel::ReturnCodes PPSavePanel::runModal()
 	
 	return err;
 }
+
+#endif
+

@@ -20,6 +20,8 @@
  *
  */
 
+#ifdef __amigaos4__
+
 #include "PPOpenPanel.h"
 #include "AslRequester.h"
 
@@ -56,3 +58,6 @@ PPOpenPanel::ReturnCodes PPOpenPanel::runModal()
 	
 	return err;
 }
+
+#endif
+
