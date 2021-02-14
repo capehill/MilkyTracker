@@ -191,6 +191,8 @@ static BOOL drawFocusRing;
 	// Setup pointer to position vertices
 	glVertexAttribPointer(posAttrib, 2, GL_FLOAT, GL_FALSE, 2 * sizeof (GLfloat), 0);
 	glEnableVertexAttribArray(posAttrib);
+
+	[super prepareOpenGL];
 }
 
 // -------------------------------------------------------
@@ -317,41 +319,55 @@ static BOOL drawFocusRing;
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 	}
-	
+
 	else
 	{
+	/*
 		// Clamp dirty size to w/h of the screen/texture
 		GLint x = dirtyRect.origin.x;
 		GLint y = dirtyRect.origin.y;
 		GLint w = dirtyRect.size.width  > width  ? width  : dirtyRect.size.width;
 		GLint h = dirtyRect.size.height > height ? height : dirtyRect.size.height;
-		
+
 		// Set skip value for partial update
 		glPixelStorei(GL_UNPACK_SKIP_PIXELS, y * width + x);
-		
-		glBindVertexArray(uiVertexArrayName);
-		
+
 		// Update texture
 		glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, GL_BGR, GL_UNSIGNED_BYTE, pixelData);
-		
+	*/
+		// Xcode 11 broke Milkytracker/OpenGL somehow, the above glTexSubImage
+		// now errors INVALID_OPERATION. Regenerating the texture is allowed..
+
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_BGR, GL_UNSIGNED_BYTE, pixelData);
+
+		// ..but the texture remains black unless..
+
+		glGenerateMipmap(GL_TEXTURE_2D);
+
+		// ..not ideal! I tried some other methods including buffer objects,
+		// but nothing seems to work.  OpenGL support will be dropped on MacOS
+		// in the near future, so I don't want to spend any more time on this.
+		// - df
+
 		// Draw surface quad from triangle strip
+		glBindVertexArray(uiVertexArrayName);
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-		
+
 		// Draw focus ring if necessary
 		if (drawFocusRing)
 		{
 			// Set color uniform to system highlight color
 			NSColor* lineColor = [[NSColor selectedControlColor] colorUsingColorSpaceName:NSCalibratedRGBColorSpace];
 			glUniform4f(colorUniform,  [lineColor redComponent], [lineColor greenComponent], [lineColor blueComponent], 1.0f);
-			
+
 			glBindVertexArray(focusRingVertexArrayName);
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, 10);
-			
+
 			// Zero color uniform so we use texture color again
 			glUniform4f(colorUniform, 0.0f, 0.0f, 0.0f, 0.0f);
 		}
 	}
-	
+
 	// Flip buffers
 	[[self openGLContext] flushBuffer];
 }
@@ -491,18 +507,26 @@ static BOOL drawFocusRing;
 
 - (void)scrollWheel:(NSEvent *)theEvent
 {
+	static float xMouseFract = 0.0;
+	static float yMouseFract = 0.0;
 	curPoint = [self translateMouseCoordinates:theEvent];
-	
+
 #if DEBUG
 	NSLog(@"Scroll wheel event: Delta x %.2f, y %.2f @ (%d,%d)", theEvent.deltaX, theEvent.deltaY, curPoint.x, curPoint.y);
 #endif
-	
+
+	CGFloat dX = theEvent.deltaX;
+	CGFloat dY = theEvent.deltaY;
+	if(xMouseFract * dX < 0.0) xMouseFract = 0;
+	if(yMouseFract * dY < 0.0) yMouseFract = 0;
 	TMouseWheelEventParams mouseWheelParams;
 	mouseWheelParams.pos.x = curPoint.x;
 	mouseWheelParams.pos.y = curPoint.y;
-	mouseWheelParams.deltaX = -theEvent.deltaX;
-	mouseWheelParams.deltaY = theEvent.deltaY;
-	
+	mouseWheelParams.deltaX = xMouseFract + dX;
+	mouseWheelParams.deltaY = yMouseFract + dY;
+	xMouseFract += float(dX) - mouseWheelParams.deltaX;
+	yMouseFract += float(dY) - mouseWheelParams.deltaY;
+
 	PPEvent myEvent(eMouseWheelMoved, &mouseWheelParams, sizeof(TMouseWheelEventParams));
 	RaiseEventSynchronized(&myEvent);
 }

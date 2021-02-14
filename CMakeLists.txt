@@ -19,8 +19,18 @@
 #  along with MilkyTracker.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-cmake_minimum_required(VERSION 2.8.5)
+cmake_minimum_required(VERSION 3.10)
 project(MilkyTracker)
+
+# Set C++ standard to C++98
+set(CMAKE_CXX_STANDARD 98)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Enable IDE solution folders
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
+# Enable tracker-specific functions in MilkyPlay
+add_definitions(-DMILKYTRACKER)
 
 # Adhere to GNU filesystem layout conventions
 include(GNUInstallDirs)
@@ -31,19 +41,18 @@ if(FORCESDL)
     unset(APPLE)
     unset(WIN32)
     add_definitions(-D__FORCE_SDL_AUDIO__)
-    # Frameworks not supported by findSDL2.cmake
-    set(CMAKE_FIND_FRAMEWORK NEVER)
 endif()
 
 # Lowercase project name for binaries and packaging
 string(TOLOWER ${PROJECT_NAME} PROJECT_NAME_LOWER)
+string(TOLOWER ${CMAKE_SYSTEM_NAME} SYSTEM_NAME_LOWER)
 
 # Additional CMake modules
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 # Version number in format X.YY.ZZ
 set(VER_X  1)
-set(VER_YY 02)
+set(VER_YY 03)
 set(VER_ZZ 00)
 set(VER_FULL "${VER_X}.${VER_YY}.${VER_ZZ}")
 
@@ -73,7 +82,6 @@ endif()
 set(CPACK_PACKAGE_NAME ${PROJECT_NAME_LOWER})
 set(CPACK_PACKAGE_VENDOR "MilkyTracker Team")
 set(CPACK_PACKAGE_CONTACT "support@milkytracker.org")
-set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${VER_FULL}")
 set(CPACK_PACKAGE_VERSION_MAJOR ${VER_X})
 set(CPACK_PACKAGE_VERSION_MINOR ${VER_YY})
 set(CPACK_PACKAGE_VERSION_PATCH ${VER_ZZ})
@@ -91,6 +99,8 @@ if(APPLE)
             "or change the variable in the CMake GUI to target Lion and newer."
         )
     endif()
+
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
 
     # Set variables for generating the Info.plist file
     set(MACOSX_BUNDLE_BUNDLE_VERSION "${VER_FULL}")
@@ -157,12 +167,11 @@ elseif(WIN32)
     message(STATUS "Enabled MIDI support (WinMM)")
     add_subdirectory(src/midi)
 else()
-    # Workaround for SDL bug #3295, which we might hit if the distro's SDL2
-    # package includes the sdl2-config.cmake file
+    # Workaround for SDL bug #3295, which occurs in SDL2 <2.0.5
     # https://bugzilla.libsdl.org/show_bug.cgi?id=3295
     cmake_policy(SET CMP0004 OLD)
 
-    find_package(SDL2 2 REQUIRED)
+    find_package(SDL2 REQUIRED)
 endif()
 
 # Prefer static linkage under OS X for libraries located with find_package()
@@ -214,3 +223,6 @@ add_subdirectory(src/fx)
 add_subdirectory(src/milkyplay)
 add_subdirectory(src/ppui)
 add_subdirectory(src/tracker)
+
+# Set MilkyTracker target as startup project in Visual Studio
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT tracker)

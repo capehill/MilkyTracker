@@ -116,7 +116,7 @@ const SYSCHAR* System::getConfigFileName()
 		return buffer;
 	}
 	// Old location was in the home directory
-	char oldLoc[PATH_MAX];
+	char oldLoc[PATH_MAX + 1];
 	strncpy(oldLoc, home, PATH_MAX);
 	strncat(oldLoc, "/.milkytracker_config", PATH_MAX);
 	// New location based on xdg basedir spec
@@ -137,6 +137,7 @@ const SYSCHAR* System::getConfigFileName()
 		rename(oldLoc, buffer);
 
 	return buffer;
+#endif
 }
 
 void System::msleep(int msecs)

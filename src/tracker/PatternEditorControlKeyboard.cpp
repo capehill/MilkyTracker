@@ -108,6 +108,8 @@ void PatternEditorControl::initKeyBindings()
 
 	eventKeyDownBindingsFastTracker->addBinding(VK_INSERT, 0, &PatternEditorControl::eventKeyDownBinding_InsertNote);
 	eventKeyDownBindingsFastTracker->addBinding(VK_INSERT, KeyModifierSHIFT, &PatternEditorControl::eventKeyDownBinding_InsertLine);
+	eventKeyDownBindingsFastTracker->addBinding(VK_BACK, KeyModifierALT, &PatternEditorControl::eventKeyDownBinding_InsertNote);
+	eventKeyDownBindingsFastTracker->addBinding(VK_BACK, KeyModifierALT | KeyModifierSHIFT, &PatternEditorControl::eventKeyDownBinding_InsertLine);
 	eventKeyDownBindingsFastTracker->addBinding(VK_BACK, 0, &PatternEditorControl::eventKeyDownBinding_DeleteNoteSlot);
 	eventKeyDownBindingsFastTracker->addBinding(VK_BACK, KeyModifierSHIFT, &PatternEditorControl::eventKeyDownBinding_DeleteLine);
 
@@ -540,9 +542,7 @@ pp_int32 PatternEditorControl::ScanCodeToNote(pp_int16 scanCode)
 
 		// CAPS-lock
 		case SC_CAPSLOCK:
-#ifndef WIN32
 		case SC_1:
-#endif
 			return PatternTools::getNoteOffNote();
 
 		case SC_SMALLERGREATER:
