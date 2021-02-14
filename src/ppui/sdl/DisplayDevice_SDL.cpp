@@ -38,6 +38,7 @@ SDL_Window* PPDisplayDevice::CreateWindow(pp_int32& w, pp_int32& h, pp_int32& bp
 		strncat(rendername, info.name, sizeof(rendername) - namelen);
 		strncat(rendername, " ", sizeof(rendername) - namelen);
 
+#ifndef __amigaos4__ // AmigaOS 4 SDL2 supports OGLES2, but it's not available to all users
 		if (strncmp("opengles2", info.name, 9) == 0)
 		{
 			drv_index = it;
@@ -46,6 +47,7 @@ SDL_Window* PPDisplayDevice::CreateWindow(pp_int32& w, pp_int32& h, pp_int32& bp
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 			SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
 		}
+#endif
 	}
 
 	// Create SDL window
@@ -69,6 +71,7 @@ SDL_Window* PPDisplayDevice::CreateWindow(pp_int32& w, pp_int32& h, pp_int32& bp
 		}
 	}
 
+#ifndef __amigaos4__ // No need to create GL context.
 	SDL_GLContext ctx = SDL_GL_CreateContext(theWindow);
 	SDL_GL_MakeCurrent(theWindow, ctx);
 	
@@ -84,6 +87,13 @@ SDL_Window* PPDisplayDevice::CreateWindow(pp_int32& w, pp_int32& h, pp_int32& bp
 		fprintf(stdout, "Extensions : %s\n", glGetStringAPI(GL_EXTENSIONS));
 #endif
 	}
+
+	if (ctx)
+	{
+		SDL_GL_DeleteContext(ctx);
+	}
+#endif
+
 	// Prevent window from being resized below minimum
 	SDL_SetWindowMinimumSize(theWindow, w, h);
 	fprintf(stderr, "SDL: Minimum window size set to %dx%d.\n", w, h);
