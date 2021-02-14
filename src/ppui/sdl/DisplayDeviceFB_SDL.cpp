@@ -78,6 +78,7 @@ PPDisplayDeviceFB::PPDisplayDeviceFB(pp_int32 width,
 		if (theRendererInfo.flags & SDL_RENDERER_ACCELERATED) printf("SDL: Using accelerated renderer.\n");
 		if (theRendererInfo.flags & SDL_RENDERER_PRESENTVSYNC) printf("SDL: Vsync enabled.\n");
 		if (theRendererInfo.flags & SDL_RENDERER_TARGETTEXTURE) printf("SDL: Renderer supports rendering to texture.\n");
+		printf("SDL: Renderer name: %s\n", theRendererInfo.name);
 	}
 
 	// Lock aspect ratio and scale the UI up to fit the window
