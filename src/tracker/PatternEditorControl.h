@@ -100,6 +100,7 @@ private:
 		bool clickToCursor;
 		bool multiChannelEdit;
 		ScrollModes scrollMode;
+		bool invertMouseVscroll;
 		pp_uint32 muteFade;
 		char zeroEffectCharacter;
 		bool ptNoteLimit;
@@ -120,6 +121,7 @@ private:
 			clickToCursor(true), 
 			multiChannelEdit(false),
 			scrollMode(ScrollModeToEnd),
+			invertMouseVscroll(false),
 			muteFade(32768),
 			zeroEffectCharacter('\xf4'),
 			ptNoteLimit(false)
@@ -168,6 +170,10 @@ private:
 	pp_int32 selectionTicker;
 
 	bool hasDragged;
+	
+	bool moveSelection;
+	PatternEditorTools::Position moveSelectionInitialPos;
+	PatternEditorTools::Position moveSelectionFinalPos;
 
 	// edit menu
 	pp_int32 menuPosX;
@@ -202,7 +208,8 @@ public:
 	void setFont(PPFont* font);
 
 	void setShowFocus(bool showFocus) { properties.showFocus = showFocus; }
-	void setScrollMode(ScrollModes mode) { properties.scrollMode = mode; adjustScrollBarPositionsAndSizes(); assureCursorVisible(); } 
+	void setScrollMode(ScrollModes mode) { properties.scrollMode = mode; adjustScrollBarPositionsAndSizes(); assureCursorVisible(); }
+	void setInvertMouseVscroll(bool invert) { properties.invertMouseVscroll = invert; }
 
 	// from PPControl
 	virtual void setSize(const PPSize& size);
@@ -373,6 +380,9 @@ private:
 	void handleDeleteKey(pp_uint16 keyCode, pp_int32& result);
 	void handleKeyChar(pp_uint8 character);
 	void handleKeyDown(pp_uint16 keyCode, pp_uint16 scanCode, pp_uint16 character);
+
+	void selectionModifierKeyDown();
+	void selectionModifierKeyUp();
 
 	// mark channel
 	void markChannel(pp_int32 channel, bool invert = true);

@@ -142,6 +142,7 @@ SampleEditorControl::SampleEditorControl(pp_int32 id,
 	subMenuXPaste->addEntry("Amp Modulate", MenuCommandIDAMPaste);
 	subMenuXPaste->addEntry("Freq Modulate", MenuCommandIDFMPaste);
 	subMenuXPaste->addEntry("Phase Modulate", MenuCommandIDPHPaste);
+	subMenuXPaste->addEntry("Flanger", MenuCommandIDFLPaste);
 	subMenuXPaste->addEntry("Selective EQ" PPSTR_PERIODS, MenuCommandIDSelectiveEQ10Band);
 
 	subMenuPT = new PPContextMenu(6, parentScreen, this, PPPoint(0,0), TrackerConfig::colorThemeMain);
@@ -273,7 +274,7 @@ pp_uint32 SampleEditorControl::getRepeatLength() const
 	return sampleEditor->getRepeatLength(); 
 }
 
-void SampleEditorControl::formatMillis(char* buffer, pp_uint32 millis)
+void SampleEditorControl::formatMillis(char* buffer, size_t size, pp_uint32 millis)
 {
 	if (millis >= 1000)
 	{
@@ -283,16 +284,16 @@ void SampleEditorControl::formatMillis(char* buffer, pp_uint32 millis)
 		{
 			pp_uint32 mins = secs / 60;
 			secs %= 60;
-			sprintf(buffer, "%im%i.%is", mins, secs, millis);
+			snprintf(buffer, size, "%im%02i.%03is", mins, secs, millis);
 		}
 		else		
-			sprintf(buffer, "%i.%is", secs, millis);
+			snprintf(buffer, size, "%i.%03is", secs, millis);
 	}
 	else
-		sprintf(buffer, "%ims", millis);	
+		snprintf(buffer, size, "%ims", millis);
 }
 
-void SampleEditorControl::formatMillisFraction(char* buffer, pp_uint32 millis, pp_uint32 totalMillis)
+void SampleEditorControl::formatMillisFraction(char* buffer, size_t size, pp_uint32 millis, pp_uint32 totalMillis)
 {
 	if (totalMillis >= 1000)
 	{
@@ -306,13 +307,13 @@ void SampleEditorControl::formatMillisFraction(char* buffer, pp_uint32 millis, p
 			pp_uint32 totalMins = totalSecs / 60;
 			secs %= 60;
 			totalSecs %= 60;
-			sprintf(buffer, "%im%i.%is / %im%i.%is", mins, secs, millis, totalMins, totalSecs, totalMillis);
+			snprintf(buffer, size, "%im%02i.%03is / %im%02i.%03is", mins, secs, millis, totalMins, totalSecs, totalMillis);
 		}
 		else
-			sprintf(buffer, "%i.%is / %i.%is", secs, millis, totalSecs, totalMillis);
+			snprintf(buffer, size, "%i.%03is / %i.%03is", secs, millis, totalSecs, totalMillis);
 	}
 	else
-		sprintf(buffer, "%ims / %ims", millis, totalMillis);
+		snprintf(buffer, size, "%ims / %ims", millis, totalMillis);
 }
 
 void SampleEditorControl::paint(PPGraphicsAbstract* g)
@@ -512,7 +513,7 @@ void SampleEditorControl::paint(PPGraphicsAbstract* g)
 	else if (offsetFormat == OffsetFormatMillis)
 	{
 		pp_uint32 millis = sampleEditor->convertSmpPosToMillis((mp_sint32)ceil(startPos*xScale), relativeNote);
-		formatMillis(buffer, millis);
+		formatMillis(buffer, sizeof(buffer), millis);
 	}
 
 	PPFont* font = PPFont::getFont(PPFont::FONT_TINY);
@@ -537,7 +538,7 @@ void SampleEditorControl::paint(PPGraphicsAbstract* g)
 		{
 			pp_uint32 millis = sampleEditor->convertSmpPosToMillis(positionToSample(currentPosition), relativeNote);
 			pp_uint32 totalMillis = sampleEditor->convertSmpPosToMillis(end, relativeNote);
-			formatMillisFraction(buffer, millis, totalMillis);
+			formatMillisFraction(buffer, sizeof(buffer), millis, totalMillis);
 		}
 	}
 	else
@@ -549,7 +550,7 @@ void SampleEditorControl::paint(PPGraphicsAbstract* g)
 		else if (offsetFormat == OffsetFormatMillis)
 		{
 			pp_uint32 totalMillis = sampleEditor->convertSmpPosToMillis(end, relativeNote);
-			formatMillis(buffer, totalMillis);
+			formatMillis(buffer, sizeof(buffer), totalMillis);
 		}
 	}
 
@@ -1096,16 +1097,16 @@ selectingAndResizing:
 					pp_int32 x2 = (pp_int32)((sEnd)/xScale)-startPos + location.x + 2;
 					
 					pp_int32 minDist = (scrollDist>>4);
-					if (minDist < 1) minDist = 1;
+					if (minDist < 4) minDist = 4;
 					
 					pp_int32 sDist1 = abs(x1 - p->x);
 					pp_int32 sDist2 = abs(p->x - x2);
 					
-					if (sDist1 >= 0 && sDist1 <= minDist && (::getKeyModifier() == KeyModifierCTRL))
+					if (sDist1 >= 0 && sDist1 <= minDist)
 					{
 						type = MouseCursorTypeResizeLeft;
 					}
-					else if (sDist2 >= 0 && sDist2 <= minDist && (::getKeyModifier() == KeyModifierCTRL))
+					else if (sDist2 >= 0 && sDist2 <= minDist)
 					{
 						type = MouseCursorTypeResizeRight;
 					}
@@ -1684,6 +1685,7 @@ void SampleEditorControl::invokeContextMenu(const PPPoint& p, bool translatePoin
 	subMenuXPaste->setState(MenuCommandIDAMPaste, sampleEditor->clipBoardIsEmpty() || isEmptySample);
 	subMenuXPaste->setState(MenuCommandIDFMPaste, sampleEditor->clipBoardIsEmpty() || isEmptySample);
 	subMenuXPaste->setState(MenuCommandIDPHPaste, sampleEditor->clipBoardIsEmpty() || isEmptySample);
+	subMenuXPaste->setState(MenuCommandIDFLPaste, sampleEditor->clipBoardIsEmpty() || isEmptySample);
 	subMenuXPaste->setState(MenuCommandIDSelectiveEQ10Band, sampleEditor->clipBoardIsEmpty() || isEmptySample);
 
 	subMenuPT->setState(MenuCommandIDPTBoost, isEmptySample);
@@ -1741,6 +1743,11 @@ void SampleEditorControl::executeMenuCommand(pp_int32 commandId)
 		// PH-paste
 		case MenuCommandIDPHPaste:
 			sampleEditor->PHPasteSample();
+			break;
+
+		// FL-paste
+		case MenuCommandIDFLPaste:
+			sampleEditor->FLPasteSample();
 			break;
 
 		// crop
