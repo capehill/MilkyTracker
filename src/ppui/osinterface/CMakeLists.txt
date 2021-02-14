@@ -90,29 +90,29 @@ elseif(AMIGA)
     target_sources(osinterface
         PRIVATE
             # Sources
-            amiga/PPOpenPanel_Amiga.cpp$
-            amiga/PPSavePanel_Amiga.cpp$
-            amiga/AslRequester.cpp$
-            posix/PPPath_POSIX.cpp$
-            posix/PPSystem_POSIX.cpp$
-            sdl/PPMessageBox_SDL.cpp$
-            sdl/PPMutex.cpp$
-            sdl/PPOpenPanel_SDL.cpp$
-            sdl/PPQuitSaveAlert_SDL.cpp$
-            sdl/PPSavePanel_SDL.cpp$
-            sdl/SDL_ModalLoop.cpp$
+            amiga/PPOpenPanel_Amiga.cpp
+            amiga/PPSavePanel_Amiga.cpp
+            amiga/AslRequester.cpp
+            posix/PPPath_POSIX.cpp
+            posix/PPSystem_POSIX.cpp
+            sdl/PPMessageBox_SDL.cpp
+            sdl/PPMutex.cpp
+            sdl/PPOpenPanel_SDL.cpp
+            sdl/PPQuitSaveAlert_SDL.cpp
+            sdl/PPSavePanel_SDL.cpp
+            sdl/SDL_ModalLoop.cpp
 
             # Headers
-            posix/PPMutex.h$
-            amiga/AslRequester.h$
-            posix/PPPath_POSIX.h$
-            posix/PPSystemString_POSIX.h$
-            posix/PPSystem_POSIX.h$
-            sdl/PPMutex.h$
-            sdl/SDL_ModalLoop.h$
+            posix/PPMutex.h
+            amiga/AslRequester.h
+            posix/PPPath_POSIX.h
+            posix/PPSystemString_POSIX.h
+            posix/PPSystem_POSIX.h
+            sdl/PPMutex.h
+            sdl/SDL_ModalLoop.h
     )
-    target_include_directories(osinterface PUBLIC amiga)
-endif()
+    target_include_directories(osinterface PUBLIC amiga posix ${SDL2_INCLUDE_DIRS})
+else()
     target_sources(osinterface
         PRIVATE
             # Sources

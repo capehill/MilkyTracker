@@ -103,7 +103,7 @@ const SYSCHAR* System::getConfigFileName()
 	path.Append("milkytracker_config");
 	strcpy(buffer, path.Path());	
 	return buffer;
-#endif
+#else
 #ifdef __amigaos4__
 	char *home = NULL;
 #else

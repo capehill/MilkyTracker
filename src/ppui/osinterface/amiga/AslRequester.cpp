@@ -34,7 +34,9 @@
 
 struct AslIFace *IAsl;
 
-static char pathBuffer[MAX_DOS_PATH];
+static const int maxPath = 255;
+
+static char pathBuffer[maxPath];
 
 static void GetCurrentPath()
 {
@@ -55,7 +57,7 @@ static void GetCurrentPath()
 
 static PPSystemString GetFileNameFromRequester(struct FileRequester *req)
 {
-    char buffer[MAX_DOS_PATH];
+    char buffer[maxPath];
     PPSystemString fileName = "";
 
     if (strlen(req->fr_Drawer) < sizeof(buffer)) {
