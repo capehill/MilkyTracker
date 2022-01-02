@@ -184,7 +184,8 @@ public:
 	bool hasValidSelection() const { return ((selectionStart >= 0 && selectionEnd >= 0) && (selectionStart != selectionEnd)); }
 	
 	void selectAll();
-	
+	void loopRange();
+
 	bool validate();
 
 	// --- Multilevel UNDO / REDO --------------------------------------------
@@ -237,6 +238,10 @@ public:
 	pp_int32 getPanning() const;
 
 	bool isEmpty() const { if (sample && !sample->sample) return true; else return false; } 
+
+	bool isLastOperationResampling() const;
+	const FilterParameters* getLastParameters() const;
+	const SampleUndoStackEntry* getUndoSample() const;
 
 	void startDrawing();
 	bool isDrawing() const { return drawing; }
@@ -328,6 +333,7 @@ public:
 	// filters 
 	void tool_scaleSample(const FilterParameters* par);
 	void tool_normalizeSample(const FilterParameters* par);
+	void tool_compressSample(const FilterParameters* par);
 	void tool_reverseSample(const FilterParameters* par);
 	void tool_PTboostSample(const FilterParameters* par);
 	bool isValidxFadeSelection();
@@ -349,6 +355,8 @@ public:
 	void tool_generateSquare(const FilterParameters* par);
 	void tool_generateTriangle(const FilterParameters* par);
 	void tool_generateSawtooth(const FilterParameters* par);
+	void tool_generateHalfSine(const FilterParameters* par);
+	void tool_generateAbsoluteSine(const FilterParameters* par);
 
 	void tool_applyLastFilter();
 	bool tool_canApplyLastFilter() const;
