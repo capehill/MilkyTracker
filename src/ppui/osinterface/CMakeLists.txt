@@ -111,7 +111,7 @@ elseif(AMIGA)
             sdl/PPMutex.h
             sdl/SDL_ModalLoop.h
     )
-    target_include_directories(osinterface PUBLIC amiga posix ${SDL2_INCLUDE_DIRS})
+    target_include_directories(osinterface PUBLIC amiga sdl posix ${SDL2_INCLUDE_DIRS})
 else()
     target_sources(osinterface
         PRIVATE
