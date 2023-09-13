@@ -1053,6 +1053,9 @@ unrecognizedCommandLineSwitch:
 
 #ifdef __amigaos4__
 
+static const char* const stackCookie __attribute__((used)) = "$STACK:100000";
+static const char* const versionStr __attribute__((used)) = "$VER: MilkyTracker 1.03 (29.04.23)";
+
 #include "SDL_syswm.h"
 
 struct Window * getNativeWindow(void) {
