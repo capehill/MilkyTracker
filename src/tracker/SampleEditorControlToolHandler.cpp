@@ -153,6 +153,9 @@ bool SampleEditorControl::invokeToolParameterDialog(SampleEditorControl::ToolHan
 		case ToolHandlerResponder::SampleToolTypeGenerateSquare:
 		case ToolHandlerResponder::SampleToolTypeGenerateTriangle:
 		case ToolHandlerResponder::SampleToolTypeGenerateSawtooth:
+		case ToolHandlerResponder::SampleToolTypeGenerateHalfSine:
+		case ToolHandlerResponder::SampleToolTypeGenerateAbsoluteSine:
+		case ToolHandlerResponder::SampleToolTypeGenerateQuarterSine:
 		{
 			dialog = new DialogWithValues(parentScreen, toolHandlerResponder, PP_DEFAULT_ID, "Generate waveform" PPSTR_PERIODS, DialogWithValues::ValueStyleEnterTwoValues);
 			static_cast<DialogWithValues*>(dialog)->setValueOneCaption("Volume in percent:");
@@ -232,11 +235,13 @@ bool SampleEditorControl::invokeTool(ToolHandlerResponder::SampleToolTypes type)
 		{
 			lastValues.resampleInterpolationType = static_cast<DialogResample*>(dialog)->getInterpolationType();
 			lastValues.adjustFtAndRelnote = static_cast<DialogResample*>(dialog)->getAdjustFtAndRelnote();
+			lastValues.adjustSampleOffsetCommand = static_cast<DialogResample*>(dialog)->getAdjustSampleOffsetCommand();
 
-			FilterParameters par(3);
+			FilterParameters par(4);
 			par.setParameter(0, FilterParameters::Parameter(static_cast<DialogResample*>(dialog)->getC4Speed()));
 			par.setParameter(1, FilterParameters::Parameter(static_cast<pp_int32>(lastValues.resampleInterpolationType)));
 			par.setParameter(2, FilterParameters::Parameter(lastValues.adjustFtAndRelnote ? 1 : 0));
+			par.setParameter(3, FilterParameters::Parameter(lastValues.adjustSampleOffsetCommand ? 1 : 0));
 			sampleEditor->tool_resampleSample(&par);
 			break;
 		}
@@ -331,6 +336,40 @@ bool SampleEditorControl::invokeTool(ToolHandlerResponder::SampleToolTypes type)
 			sampleEditor->tool_generateSawtooth(&par);
 			break;
 		}
+
+		case ToolHandlerResponder::SampleToolTypeGenerateHalfSine:
+		{
+			lastValues.waveFormVolume = static_cast<DialogWithValues*>(dialog)->getValueOne();
+			lastValues.waveFormNumPeriods = static_cast<DialogWithValues*>(dialog)->getValueTwo();
+			FilterParameters par(2);
+			par.setParameter(0, FilterParameters::Parameter(lastValues.waveFormVolume / 100.0f));
+			par.setParameter(1, FilterParameters::Parameter(lastValues.waveFormNumPeriods));
+			sampleEditor->tool_generateHalfSine(&par);
+			break;
+		}
+
+		case ToolHandlerResponder::SampleToolTypeGenerateAbsoluteSine:
+		{
+			lastValues.waveFormVolume = static_cast<DialogWithValues*>(dialog)->getValueOne();
+			lastValues.waveFormNumPeriods = static_cast<DialogWithValues*>(dialog)->getValueTwo();
+			FilterParameters par(2);
+			par.setParameter(0, FilterParameters::Parameter(lastValues.waveFormVolume / 100.0f));
+			par.setParameter(1, FilterParameters::Parameter(lastValues.waveFormNumPeriods));
+			sampleEditor->tool_generateAbsoluteSine(&par);
+			break;
+		}
+
+		case ToolHandlerResponder::SampleToolTypeGenerateQuarterSine:
+		{
+			lastValues.waveFormVolume = static_cast<DialogWithValues*>(dialog)->getValueOne();
+			lastValues.waveFormNumPeriods = static_cast<DialogWithValues*>(dialog)->getValueTwo();
+			FilterParameters par(2);
+			par.setParameter(0, FilterParameters::Parameter(lastValues.waveFormVolume / 100.0f));
+			par.setParameter(1, FilterParameters::Parameter(lastValues.waveFormNumPeriods));
+			sampleEditor->tool_generateQuarterSine(&par);
+			break;
+		}
+
 		default:
 			break;
 	}

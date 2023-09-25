@@ -34,6 +34,7 @@ class SampleEditor;
 class EnvelopeEditor;
 class ModuleServices;
 class PlayerCriticalSection;
+class Tracker;
 
 class ModuleEditor
 {
@@ -378,6 +379,8 @@ public:
 	void optimizeSamples(bool convertTo8Bit, bool minimize, 
 						 mp_sint32& numConvertedSamples, mp_sint32& numMinimizedSamples,
 						 bool evaluate);
+
+	void adjustSampleOffsetCommandAfterSampleSizeChange(TXMSample *sample, pp_int32 oldSize);
 						 
 public:
 	static void insertText(char* dst, const char* src, mp_sint32 max);
@@ -385,6 +388,7 @@ public:
 	static PPSystemString getTempFilename();
 	
 	friend class ChangesListener;
+	friend class Tracker;
 };
 
 #endif

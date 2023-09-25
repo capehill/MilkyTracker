@@ -37,6 +37,8 @@
 #include "FilterParameters.h"
 #include "SampleEditorResampler.h"
 
+#define ZEROCROSS(a,b) (a > 0.0 && b <= 0.0 || a < 0.0 && b >= 0.0)
+
 SampleEditor::ClipBoard::ClipBoard() :
 		buffer(NULL)
 {
@@ -444,6 +446,26 @@ void SampleEditor::selectAll()
 	selectionEnd = sample->samplen;
 }
 
+void SampleEditor::loopRange()
+{
+	if (!hasValidSelection())
+		return;
+
+	// If a loop type is not enabled, set loop to Forward.
+	// - Changes loop type to Forward when loop type is set to One shot
+	// 	 and the start of the selection is not at the start of the sample, 
+	// 	 but so does dragging the start of the loop. 
+	if (!getLoopType())
+		setLoopType(1);
+
+	// Once loop is enabled, set the loop start/end points to selection start/end points.
+	setRepeatStart(getSelectionStart());
+	setRepeatEnd(getSelectionEnd());
+
+	// Doesn't currently have undo or have the sample do the new loop 
+	// until it retriggers, but neither does dragging the loop points.
+}
+
 bool SampleEditor::validate()
 {
 	if (isEmptySample())
@@ -784,6 +806,18 @@ pp_int32 SampleEditor::getPanning() const
 	return sample ? sample->pan : 0;
 }
 
+bool SampleEditor::isLastOperationResampling() const {
+	return lastFilterFunc == &SampleEditor::tool_resampleSample;
+}
+
+const FilterParameters* SampleEditor::getLastParameters() const {
+	return lastParameters;
+}
+
+const SampleUndoStackEntry* SampleEditor::getUndoSample() const {
+	return before;
+}
+
 void SampleEditor::startDrawing()
 {
 	if (sample)
@@ -856,9 +890,24 @@ void SampleEditor::clearSample()
 	tool_clearSample(&par);
 }
 
+void SampleEditor::mixSpreadPasteSample()
+{
+	FilterParameters par(1);
+	par.setParameter(0, FilterParameters::Parameter(0) ); // spreads selection across sample (changes pitch)
+	tool_mixPasteSample(&par);
+}
+
 void SampleEditor::mixPasteSample()
 {
-	FilterParameters par(0);
+	FilterParameters par(1);
+	par.setParameter(0, FilterParameters::Parameter(1) ); // paste's selection on top new selection start (preserve pitch)
+	tool_mixPasteSample(&par);
+}
+
+void SampleEditor::mixOverflowPasteSample()
+{
+	FilterParameters par(1);
+	par.setParameter(0, FilterParameters::Parameter(2)); // paste's selection on top new selection start (preserves pitch + overflow) 
 	tool_mixPasteSample(&par);
 }
 
@@ -974,7 +1023,8 @@ void SampleEditor::copy()
 		return;
 
 	ClipBoard::getInstance()->makeCopy(*sample, *module, getSelectionStart(), getSelectionEnd());
-
+	lastRelNote = sample->relnote;
+	lastFineTune = sample->finetune;
 	notifyListener(NotificationUpdateNoChanges);
 }
 
@@ -1000,7 +1050,8 @@ void SampleEditor::paste()
 	ClipBoard::getInstance()->paste(*sample, *module, getSelectionStart());
 
 	setSelectionEnd(getSelectionStart() + ClipBoard::getInstance()->getWidth());
-
+	sample->relnote = lastRelNote;
+	sample->finetune = lastFineTune;
 	validate();	
 	finishUndo();
 
@@ -1366,6 +1417,10 @@ void SampleEditor::tool_convertSampleResolution(const FilterParameters* par)
 
 void SampleEditor::tool_mixPasteSample(const FilterParameters* par)
 {
+	ClipBoard* clipBoard = ClipBoard::getInstance();
+
+	bool preservePitch  = par->getParameter(0).intPart > 0;
+	bool overflow       = par->getParameter(0).intPart > 1;
 	if (isEmptySample())
 		return;
 
@@ -1374,6 +1429,7 @@ void SampleEditor::tool_mixPasteSample(const FilterParameters* par)
 
 	pp_int32 sStart = selectionStart;
 	pp_int32 sEnd = selectionEnd;
+	
 	
 	if (hasValidSelection())
 	{
@@ -1387,32 +1443,32 @@ void SampleEditor::tool_mixPasteSample(const FilterParameters* par)
 	}
 	else
 	{
-		sStart = 0;
+		sStart = preservePitch ? sStart : 0;
 		sEnd = sample->samplen;
 	}
-	
+	if (preservePitch) sEnd = sStart + clipBoard->getWidth();
+
 	preFilter(NULL, NULL);
 	
 	prepareUndo();
 	
-	ClipBoard* clipBoard = ClipBoard::getInstance();
-	
-	float step = (float)clipBoard->getWidth() / (float)(sEnd-sStart);
+	// preserve pitch (otherwise stretch clipboard to selection)
+	float step = preservePitch ? 1 : (float)clipBoard->getWidth() / (float)(sEnd - sStart);
 	
 	float j = 0.0f;
 	for (pp_int32 i = sStart; i < sEnd; i++)
 	{
 		float frac = j - (float)floor(j);
-	
 		pp_int16 s = clipBoard->getSampleWord((pp_int32)j);
 		float f1 = s < 0 ? (s/32768.0f) : (s/32767.0f);
-		s = clipBoard->getSampleWord((pp_int32)j+1);
+		s = clipBoard->getSampleWord( ((pp_int32)j+ 1) % sample->samplen );
 		float f2 = s < 0 ? (s/32768.0f) : (s/32767.0f);
 
 		float f = (1.0f-frac)*f1 + frac*f2;
 		
-		setFloatSampleInWaveform(i, f + getFloatSampleFromWaveform(i));
+		setFloatSampleInWaveform(i % sample->samplen, f + getFloatSampleFromWaveform(i % sample->samplen));
 		j+=step;
+		if (!overflow && i == sample->samplen) break;
 	}
 				
 	finishUndo();	
@@ -1721,6 +1777,39 @@ void SampleEditor::tool_FLPasteSample(const FilterParameters* par)
 
 }
 
+void SampleEditor::tool_foldSample(const FilterParameters* par)
+{
+	if (isEmptySample())
+		return;
+
+	pp_int32 sStart = 0;
+	pp_int32 sEnd = sample->samplen/2;
+
+	preFilter(&SampleEditor::tool_foldSample, par);
+	
+	prepareUndo();
+	
+	pp_int32 i;
+	bool is16Bit = (sample->type & 16);
+
+	// mix first half with second half
+	for (i = 0;  i < sEnd; i++){
+		mp_sint32 mix = is16Bit ? sample->getSampleValue(i)*0.5 + sample->getSampleValue(i+sEnd)*0.5
+		                        : sample->getSampleValue(i)*0.5 + sample->getSampleValue(i+sEnd)*0.5;
+		sample->setSampleValue( i, mix);
+	}
+
+	finishUndo();	
+	
+	postFilter();
+	// store 1st half in clipboard
+	setSelectionStart(0);
+	setSelectionEnd(sEnd);
+	cropSample();
+	setRepeatStart(0);
+	setRepeatEnd(sEnd);
+	setLoopType(1);
+}
 
 void SampleEditor::tool_scaleSample(const FilterParameters* par)
 {
@@ -1819,6 +1908,91 @@ void SampleEditor::tool_normalizeSample(const FilterParameters* par)
 	
 	postFilter();
 }
+
+void SampleEditor::tool_compressSample(const FilterParameters* par)
+{
+	if (isEmptySample())
+		return;
+
+	pp_int32 sStart = selectionStart;
+	pp_int32 sEnd = selectionEnd;
+
+	if (hasValidSelection())
+	{
+		if (sStart >= 0 && sEnd >= 0)
+		{
+			if (sEnd < sStart)
+			{
+				pp_int32 s = sEnd; sEnd = sStart; sStart = s;
+			}
+		}
+	}
+	else
+	{
+		sStart = 0;
+		sEnd = sample->samplen;
+	}
+
+	preFilter(&SampleEditor::tool_compressSample, par);
+
+	prepareUndo();
+
+	pp_int32 i;
+	float peak = 0.0f;
+
+	// find peak value (pre)
+	for (i = sStart; i < sEnd; i++)
+	{
+		float f = getFloatSampleFromWaveform(i);
+		if (ppfabs(f) > peak) peak = ppfabs(f);
+	}
+
+	float max = 0.0f;
+	float compress = peak * 0.66;
+	float last  = 0.0;
+	float wpeak = 0.0;
+	int zerocross[2];
+	zerocross[0] = -1;
+	zerocross[1] = -1;
+	float treshold = 0.8;
+	float peakTreshold = peak * treshold;
+
+	// scaling limiter inspired by awesome 'TAP scaling limiter'
+	for (i = sStart; i < sEnd; i++) {
+		float f = getFloatSampleFromWaveform(i);
+		if (ZEROCROSS(f, last)) {
+			zerocross[0] = zerocross[1];
+			zerocross[1] = i;
+			if (zerocross[0] >= 0 && zerocross[1] > 0) {                   // detected waveset 
+				wpeak = 0;
+				for (int j = zerocross[0]; j < zerocross[1]; j++) {        // get peak from waveset
+					float w = getFloatSampleFromWaveform(j);
+					if (ppfabs(w) > wpeak) wpeak = ppfabs(w);
+				}
+				if (wpeak > peakTreshold) {                                    // scale down waveset if wpeak exceeds treshold
+					for (int j = zerocross[0]; j < zerocross[1]; j++) {
+						float b = getFloatSampleFromWaveform(j) * (peakTreshold / wpeak);
+						this->setFloatSampleInWaveform(j,b );
+					}
+				}
+			}
+		}
+		last = f;
+	}
+
+	// post-compensate amplitudes 
+	float scale = (peak/peakTreshold);
+	for (i = sStart; i < sEnd; i++)
+	{
+		float f = getFloatSampleFromWaveform(i);
+		setFloatSampleInWaveform(i, f * scale);
+	}
+
+	finishUndo();
+
+	postFilter();
+}
+
 
 void SampleEditor::tool_reverseSample(const FilterParameters* par)
 {
@@ -2890,6 +3064,164 @@ void SampleEditor::tool_generateSawtooth(const FilterParameters* par)
 	}
 
 	finishUndo();	
+
+	postFilter();
+}
+
+void SampleEditor::tool_generateHalfSine(const FilterParameters* par)
+{
+	if (isEmptySample())
+		return;
+
+	pp_int32 sStart = selectionStart;
+	pp_int32 sEnd = selectionEnd;
+
+	if (hasValidSelection())
+	{
+		if (sStart >= 0 && sEnd >= 0)
+		{
+			if (sEnd < sStart)
+			{
+				pp_int32 s = sEnd; sEnd = sStart; sStart = s;
+			}
+		}
+	}
+	else
+	{
+		sStart = 0;
+		sEnd = sample->samplen;
+	}
+
+	preFilter(&SampleEditor::tool_generateHalfSine, par);
+
+	mp_sint32 sLen = sEnd - sStart;
+
+	prepareUndo();
+
+	pp_int32 i;
+
+	const float numPeriods = (float)(6.283185307179586476925286766559 * par->getParameter(1).floatPart);
+	const float amplify = par->getParameter(0).floatPart;
+
+	// generate half sine wave here
+	for (i = sStart; i < sStart + sLen / 2; i++)
+	{
+		float per = (i - sStart) / (float)sLen * numPeriods;
+		setFloatSampleInWaveform(i, (float)sin(per) * amplify);
+	}
+	for (; i < sEnd; i++)
+	{
+		setFloatSampleInWaveform(i, 0);
+	}
+
+	finishUndo();
+
+	postFilter();
+}
+
+void SampleEditor::tool_generateAbsoluteSine(const FilterParameters* par)
+{
+	if (isEmptySample())
+		return;
+
+	pp_int32 sStart = selectionStart;
+	pp_int32 sEnd = selectionEnd;
+
+	if (hasValidSelection())
+	{
+		if (sStart >= 0 && sEnd >= 0)
+		{
+			if (sEnd < sStart)
+			{
+				pp_int32 s = sEnd; sEnd = sStart; sStart = s;
+			}
+		}
+	}
+	else
+	{
+		sStart = 0;
+		sEnd = sample->samplen;
+	}
+
+	preFilter(&SampleEditor::tool_generateAbsoluteSine, par);
+
+	mp_sint32 sLen = sEnd - sStart;
+
+	prepareUndo();
+
+	pp_int32 i;
+
+	const float numPeriods = (float)(6.283185307179586476925286766559 * par->getParameter(1).floatPart);
+	const float amplify = par->getParameter(0).floatPart;
+
+	// generate absolute sine wave here
+	for (i = sStart; i < sEnd; i++)
+	{
+		float per = (i - sStart) / (float)sLen * numPeriods;
+		setFloatSampleInWaveform(i, fabs((float)sin(per) * amplify));
+	}
+
+	finishUndo();
+
+	postFilter();
+}
+
+void SampleEditor::tool_generateQuarterSine(const FilterParameters* par)
+{
+	if (isEmptySample())
+		return;
+
+	pp_int32 sStart = selectionStart;
+	pp_int32 sEnd = selectionEnd;
+
+	if (hasValidSelection())
+	{
+		if (sStart >= 0 && sEnd >= 0)
+		{
+			if (sEnd < sStart)
+			{
+				pp_int32 s = sEnd; sEnd = sStart; sStart = s;
+			}
+		}
+	}
+	else
+	{
+		sStart = 0;
+		sEnd = sample->samplen;
+	}
+
+	preFilter(&SampleEditor::tool_generateQuarterSine, par);
+
+	mp_sint32 sLen = sEnd - sStart;
+
+	prepareUndo();
+
+	pp_int32 i;
+
+	const float numPeriods = (float)(6.283185307179586476925286766559 * par->getParameter(1).floatPart);
+	const float amplify = par->getParameter(0).floatPart;
+
+	// generate quarter sine wave in first and third quarters
+	for (i = sStart; i < sStart + sLen / 4; i++)
+	{
+		float per = (i - sStart) / (float)sLen * numPeriods;
+		setFloatSampleInWaveform(i, (float)sin(per) * amplify);
+	}
+	for (; i < sStart + sLen / 2; i++)
+	{
+		setFloatSampleInWaveform(i, 0);
+	}
+	for (; i < sStart + sLen * 3 / 4; i++)
+	{
+		float per = (i - (sStart + sLen / 2)) / (float)sLen * numPeriods;
+		setFloatSampleInWaveform(i, (float)sin(per) * amplify);
+	}
+	for (; i < sEnd; i++)
+	{
+		setFloatSampleInWaveform(i, 0);
+	}
+
+	finishUndo();
 
 	postFilter();
 }

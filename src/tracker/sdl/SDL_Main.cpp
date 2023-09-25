@@ -65,6 +65,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <limits.h>
+#include <errno.h>
 
 #include <SDL.h>
 #include "SDL_KeyTranslation.h"
@@ -281,7 +282,11 @@ void StartMidiRecording(unsigned int devID)
 
 void InitMidi()
 {
-	StartMidiRecording(0);
+	unsigned int portId = 0;
+	if(const char* port = std::getenv("MIDI_IN")) portId = atoi(port);
+	StartMidiRecording(portId);
+	printf("MIDI: selecting MIDI-in port: %i\n",portId);
+	printf("MIDI: run `MIDI_IN=x ./milkytracker` to select different port)\n", portId);
 }
 #endif
 
@@ -823,9 +828,6 @@ myDisplayDevice = new PPDisplayDeviceFB(windowSize.width, windowSize.height, sca
 	myTrackerScreen = new PPScreen(myDisplayDevice, myTracker);
 	myTracker->setScreen(myTrackerScreen);
 
-	// Kickstart SDL event loop early so that the splash screen is made visible
-	SDL_PumpEvents();
-
 	// Startup procedure
 	myTracker->startUp(noSplash);
 
@@ -838,6 +840,11 @@ myDisplayDevice = new PPDisplayDeviceFB(windowSize.width, windowSize.height, sca
 
 	// Start capturing text input events
 	SDL_StartTextInput();
+
+
+	// Kickstart SDL event loop last to prevent overflowing message-queue on lowmem systems 
+  // splash screen will still be visible
+	SDL_PumpEvents();
 
 	ticking = true;
 }
@@ -973,11 +980,21 @@ unrecognizedCommandLineSwitch:
 	{
 		PPSystemString newCwd = path.getCurrent();
 		path.change(oldCwd);
-		SendFile(realpath(loadFile, loadFileAbsPath));
-		path.change(newCwd);
-		pp_uint16 chr[3] = {VK_RETURN, 0, 0};
-		PPEvent event(eKeyDown, &chr, sizeof(chr));
-		RaiseEventSerialized(&event);
+		
+		struct stat statBuf;
+
+		if (stat(realpath(loadFile, loadFileAbsPath), &statBuf) != 0)
+		{
+			fprintf(stderr, "could not open %s: %s\n", loadFile, strerror(errno));
+		}
+		else
+		{
+			SendFile(realpath(loadFile, loadFileAbsPath));
+			path.change(newCwd);
+			pp_uint16 chr[3] = {VK_RETURN, 0, 0};
+			PPEvent event(eKeyDown, &chr, sizeof(chr));
+			RaiseEventSerialized(&event);
+		}
 	}
 
 	// Main event loop
