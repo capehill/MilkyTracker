@@ -26,7 +26,9 @@
 #include "BasicTypes.h"
 #include "Control.h"
 #include "Event.h"
+#include "Tracker.h"
 #include "SampleEditor.h"
+#include "EditorBase.h"
 #include "SampleEditorControlLastValues.h"
 
 // Forwards
@@ -63,7 +65,9 @@ private:
 	PPControl* caughtControl;
 	bool controlCaughtByLMouseButton, controlCaughtByRMouseButton;
 
+	Tracker* tracker;
 	PPContextMenu* editMenuControl;
+	PPContextMenu* subMenuFX;
 	PPContextMenu* subMenuAdvanced;
 	PPContextMenu* subMenuXPaste;
 	PPContextMenu* subMenuGenerators;
@@ -126,6 +130,7 @@ public:
 				 EventListenerInterface* eventListener, 
 				 const PPPoint& location, 
 				 const PPSize& size, 
+				 Tracker& tracker,
 				 bool border = true);
 
 	virtual ~SampleEditorControl();
@@ -161,6 +166,7 @@ public:
 	void showRange();
 	void rangeAll(bool updateNotify = false);
 	void rangeClear(bool updateNotify = false);
+	void loopRange(bool updateNotify = false); // set loop points to current range
 
 	void increaseRangeStart();
 	void decreaseRangeStart();
@@ -275,13 +281,19 @@ private:
 	{
 		MenuCommandIDCrop = 99,
 		MenuCommandIDMixPaste,
+		MenuCommandIDMixOverflowPaste,
+		MenuCommandIDMixSpreadPaste,
 		MenuCommandIDAMPaste,
 		MenuCommandIDFMPaste,
 		MenuCommandIDPHPaste,
 		MenuCommandIDFLPaste,
 		MenuCommandIDNormalize,
+		MenuCommandIDCompress,
 		MenuCommandIDVolumeBoost,
 		MenuCommandIDVolumeFade,
+		MenuCommandIDVolumeFadeIn,
+		MenuCommandIDVolumeFadeOut,
+		MenuCommandIDVolumeFold,
 		MenuCommandIDReverse,
 		MenuCommandIDPTBoost,
 		MenuCommandIDXFade,
@@ -295,12 +307,16 @@ private:
 		MenuCommandIDEQ3Band,
 		MenuCommandIDEQ10Band,
 		MenuCommandIDSelectiveEQ10Band,
+		MenuCommandIDCapturePattern,
 		MenuCommandIDGenerateSilence,
 		MenuCommandIDGenerateNoise,
 		MenuCommandIDGenerateSine,
 		MenuCommandIDGenerateSquare,
 		MenuCommandIDGenerateTriangle,
-		MenuCommandIDGenerateSawtooth
+		MenuCommandIDGenerateSawtooth,
+		MenuCommandIDGenerateHalfSine,
+		MenuCommandIDGenerateAbsoluteSine,
+		MenuCommandIDGenerateQuarterSine
 	};
 	
 	void executeMenuCommand(pp_int32 commandId);
@@ -344,7 +360,10 @@ private:
 			SampleToolTypeGenerateSine,
 			SampleToolTypeGenerateSquare,
 			SampleToolTypeGenerateTriangle,
-			SampleToolTypeGenerateSawtooth
+			SampleToolTypeGenerateSawtooth,
+			SampleToolTypeGenerateHalfSine,
+			SampleToolTypeGenerateAbsoluteSine,
+			SampleToolTypeGenerateQuarterSine
 		};
 	
 	private:
@@ -362,7 +381,8 @@ private:
 	};
 
 	friend class ToolHandlerResponder;
-
+	friend class Tracker;
+	
 	PPDialogBase* dialog;
 	ToolHandlerResponder* toolHandlerResponder;
 	

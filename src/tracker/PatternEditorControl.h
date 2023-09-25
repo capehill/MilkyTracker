@@ -66,7 +66,9 @@ private:
 		pp_int32 startIndex;
 		pp_int32 startPos;
 		
-		UndoInfo()
+		UndoInfo() :
+			startIndex(),
+			startPos()
 		{
 		}
 		
@@ -82,8 +84,6 @@ private:
 	const PPColor* cursorColor;
 	const PPColor* selectionColor;
 
-	bool border;
-	
 	struct Properties
 	{
 		bool showFocus;
@@ -95,6 +95,7 @@ private:
 		bool highLightRowPrimary, highLightRowSecondary;
 		bool hexCount;
 		bool wrapAround;
+		bool advancedDnd;
 		bool prospective;
 		bool tabToNote;
 		bool clickToCursor;
@@ -115,7 +116,8 @@ private:
 			highLightRowPrimary(false), 
 			highLightRowSecondary(false),
 			hexCount(true), 
-			wrapAround(true), 
+			wrapAround(true),
+			advancedDnd(false),
 			prospective(false), 
 			tabToNote(true), 
 			clickToCursor(true), 
@@ -177,7 +179,6 @@ private:
 
 	// edit menu
 	pp_int32 menuPosX;
-	pp_int32 menuPosXOffset;
 	pp_int32 menuPosY;
 	pp_int32 menuInvokeChannel;
 	pp_int32 lastMenuInvokeChannel;
@@ -278,6 +279,9 @@ public:
 	// set wraparound mode
 	void setWrapAround(bool b) { properties.wrapAround = b; }
 	bool getWrapAround() const { return properties.wrapAround; }
+	// set advanced drag and drop mode
+	void setAdvancedDnd(bool b) { properties.advancedDnd = b; }
+	bool getAdvancedDnd() const { return properties.advancedDnd; }
 	// set tab to note
 	void setTabToNote(bool b) { properties.tabToNote = b; }
 	bool getTabToNote() const { return properties.tabToNote; }

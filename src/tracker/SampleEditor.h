@@ -103,6 +103,8 @@ public:
 private:
 	TXMSample* sample;
 	TXMSample lastSample;
+	pp_int32 lastRelNote = 0;
+	pp_int32 lastFineTune = 0;
 	
 	// Current selection
 	pp_int32 selectionStart, selectionEnd;
@@ -184,7 +186,8 @@ public:
 	bool hasValidSelection() const { return ((selectionStart >= 0 && selectionEnd >= 0) && (selectionStart != selectionEnd)); }
 	
 	void selectAll();
-	
+	void loopRange();
+
 	bool validate();
 
 	// --- Multilevel UNDO / REDO --------------------------------------------
@@ -238,6 +241,10 @@ public:
 
 	bool isEmpty() const { if (sample && !sample->sample) return true; else return false; } 
 
+	bool isLastOperationResampling() const;
+	const FilterParameters* getLastParameters() const;
+	const SampleUndoStackEntry* getUndoSample() const;
+
 	void startDrawing();
 	bool isDrawing() const { return drawing; }
 	void drawSample(pp_int32 sampleIndex, float s);
@@ -248,6 +255,8 @@ public:
 	void minimizeSample();
 	void cropSample();
 	void clearSample();
+	void mixSpreadPasteSample();
+	void mixOverflowPasteSample();
 	void mixPasteSample();
 	void AMPasteSample();
 	void FMPasteSample();
@@ -321,6 +330,7 @@ public:
 	void tool_FMPasteSample(const FilterParameters* par);
 	void tool_PHPasteSample(const FilterParameters* par);
 	void tool_FLPasteSample(const FilterParameters* par);
+	void tool_foldSample(const FilterParameters* par);
 	
 	// convert sample resolution
 	void tool_convertSampleResolution(const FilterParameters* par);
@@ -328,6 +338,7 @@ public:
 	// filters 
 	void tool_scaleSample(const FilterParameters* par);
 	void tool_normalizeSample(const FilterParameters* par);
+	void tool_compressSample(const FilterParameters* par);
 	void tool_reverseSample(const FilterParameters* par);
 	void tool_PTboostSample(const FilterParameters* par);
 	bool isValidxFadeSelection();
@@ -349,6 +360,9 @@ public:
 	void tool_generateSquare(const FilterParameters* par);
 	void tool_generateTriangle(const FilterParameters* par);
 	void tool_generateSawtooth(const FilterParameters* par);
+	void tool_generateHalfSine(const FilterParameters* par);
+	void tool_generateAbsoluteSine(const FilterParameters* par);
+	void tool_generateQuarterSine(const FilterParameters* par);
 
 	void tool_applyLastFilter();
 	bool tool_canApplyLastFilter() const;
