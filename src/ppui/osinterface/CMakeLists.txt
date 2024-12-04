@@ -97,9 +97,7 @@ elseif(AMIGA)
             posix/PPSystem_POSIX.cpp
             sdl/PPMessageBox_SDL.cpp
             sdl/PPMutex.cpp
-            sdl/PPOpenPanel_SDL.cpp
             sdl/PPQuitSaveAlert_SDL.cpp
-            sdl/PPSavePanel_SDL.cpp
             sdl/SDL_ModalLoop.cpp
 
             # Headers
