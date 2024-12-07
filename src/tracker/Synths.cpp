@@ -290,7 +290,7 @@ void Synth::FM( bool init ){
 
 	// setup synth
 	fm_control_t controls;
-	fm_t instrument;
+	static fm_t instrument; // echo buffers use lots of stack
 	pp_uint32 srate = 44100;
 
 	switch( (int)synth->param[13].value ){
