@@ -69,6 +69,11 @@
 
 #include <SDL.h>
 #include "SDL_KeyTranslation.h"
+
+#ifdef __amigaos4__
+#include <proto/exec.h>
+#endif
+
 // ---------------------------- Tracker includes ----------------------------
 #include "PPUI.h"
 #include "DisplayDevice_SDL.h"
@@ -880,6 +885,42 @@ void SendFile(char *file)
 	RaiseEventSerialized(&event);
 }
 
+#ifdef __amigaos4__
+static void checkStack()
+{
+        auto task = IExec->FindTask(nullptr);
+        auto upper = static_cast<uint32 *>(task->tc_SPUpper);
+        auto lower = static_cast<uint32 *>(task->tc_SPLower);
+
+        for (auto ptr = lower; ptr <= upper; ptr++) {
+                if (*ptr != 0 && *ptr != 0xbad1bad3) {
+                        printf("%u bytes left on stack, used %u\n", (ptr - lower) * 4, (upper - ptr) * 4);
+                        return;
+                }
+        }
+}
+
+static const char* const stackCookie __attribute__((used)) = "$STACK:100000";
+static const char* const versionStr __attribute__((used)) = "$VER: MilkyTracker 1.05 (05.12.24)";
+
+#include "SDL_syswm.h"
+
+struct Window * getNativeWindow(void) {
+    struct Window *syswin = NULL;
+    SDL_Window *sdlwin = myDisplayDevice->getWindow();
+
+    SDL_SysWMinfo info;
+
+    SDL_VERSION(&info.version);
+
+    if (SDL_GetWindowWMInfo(sdlwin, &info)) {
+        syswin = info.info.os4.window;
+    }
+
+    return syswin;
+}
+#endif
+
 #if defined(__PSP__)
 extern "C" int SDL_main(int argc, char *argv[])
 #else
@@ -1068,28 +1109,9 @@ unrecognizedCommandLineSwitch:
 	SDL_Quit();
 	delete globalMutex;
 
+#ifdef __amigaos4__
+	checkStack();
+#endif
+
 	return 0;
 }
-
-#ifdef __amigaos4__
-
-static const char* const stackCookie __attribute__((used)) = "$STACK:100000";
-static const char* const versionStr __attribute__((used)) = "$VER: MilkyTracker 1.05 (02.12.24)";
-
-#include "SDL_syswm.h"
-
-struct Window * getNativeWindow(void) {
-    struct Window *syswin = NULL;
-    SDL_Window *sdlwin = myDisplayDevice->getWindow();
-
-    SDL_SysWMinfo info;
-
-    SDL_VERSION(&info.version);
-
-    if (SDL_GetWindowWMInfo(sdlwin, &info)) {
-        syswin = info.info.os4.window;
-    }
-
-    return syswin;
-}
-#endif
