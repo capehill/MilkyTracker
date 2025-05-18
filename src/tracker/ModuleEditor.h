@@ -320,7 +320,7 @@ public:
 	void freeInstrument();
 	
 	// load instrument
-	bool loadInstrument(const SYSCHAR* fileName, mp_sint32 index);
+	bool loadInstrument(const SYSCHAR* fileName, mp_sint32 index );
 	// save instrument
 	bool saveInstrument(const SYSCHAR* fileName, mp_sint32 index);
 
@@ -392,6 +392,8 @@ public:
 	
 	friend class ChangesListener;
 	friend class Tracker;
+	friend class SectionSamples;
+
 };
 
 #endif

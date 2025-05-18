@@ -55,6 +55,20 @@ class PatternEditorControl :
 	public EditorBase::EditorNotificationListener, 
 	public PatternEditor::PatternAdvanceInterface
 {
+
+public:
+
+	// roundrobin
+	struct RoundRobin{ 
+		int  userOnboarded   = 0;
+		bool userSelecting   = false;
+		pp_int32 ins_size   = 0;
+		pp_int32 ins_index  = 0;
+		pp_int32 ins_start  = 0;
+		pp_int32 ins_end    = 0;
+		PPButton *button     = NULL;
+	};
+
 private:
 	struct SongPos
 	{
@@ -187,7 +201,9 @@ private:
 	PPContextMenu* moduleMenuControl;
 	PPContextMenu* patternMenuControl;
 	PPContextMenu* keyboardMenuControl;
+	PPContextMenu* helpMenuControl;
 	PPContextMenu* channelMenuControl;
+	PPContextMenu* editMenuPasteControl;
 
 	// Keyboard shortcuts
 	PPKeyBindings<TPatternEditorKeyBindingHandler>* eventKeyDownBindings;
@@ -201,8 +217,11 @@ private:
 	// Edit mode
 	EditModes editMode;
 	pp_int32 selectionKeyModifier;
+
+	RoundRobin rr;
 	
 public:
+
 	PatternEditorControl(pp_int32 id, PPScreen* parentScreen, EventListenerInterface* eventListener, 
 						 const PPPoint& location, const PPSize& size, 
 						 bool border = true);
@@ -316,11 +335,17 @@ public:
 
 	PatternEditor* getPatternEditor() const { return patternEditor; }
 
+	void roundRobin();
+	RoundRobin * getRoundRobin(){ return &rr; }
+
 	// --- these are defined in PatternEditorControlTransposeHandler.cpp -----
 	void showNoteTransposeWarningMessageBox(pp_int32 fuckups);
 	pp_int32 noteTransposeTrack(const PatternEditorTools::TransposeParameters& transposeParameters);
 	pp_int32 noteTransposePattern(const PatternEditorTools::TransposeParameters& transposeParameters);
 	pp_int32 noteTransposeSelection(const PatternEditorTools::TransposeParameters& transposeParameters);	
+	
+	void updateUnderCursor( mp_sint32 incX, mp_sint32 incY );
+	void updateStatus();
 	
 private:
 	// --- Transpose handler
@@ -346,6 +371,8 @@ private:
 	PPDialogBase* dialog;
 	TransposeHandlerResponder* transposeHandlerResponder;
 
+	PPString status;
+
 private:
 	pp_int32 getRowCountWidth();
 
@@ -363,6 +390,14 @@ private:
 	void scrollCursorUp();
 
 	void assureCursorVisible(bool row = true, bool channel = true);
+	
+	void drawStatus( 
+			PPString s, 
+			PPColor c,
+			PPGraphicsAbstract* g, 
+			PatternEditorTools::Position cursor,
+			PPFont *font,
+			pp_uint32 px);
 
 	mp_sint32 getNextRecordingChannel(mp_sint32 currentChannel);
 
@@ -378,6 +413,7 @@ private:
 		MenuCommandIDUnmuteAll,
 		MenuCommandIDSelectChannel,
 		MenuCommandIDPorousPaste,
+		MenuCommandIDPasteStepFill,
 		MenuCommandIDSwapChannels,
 		MenuCommandIDChannelAdd,
 		MenuCommandIDChannelDelete,
@@ -504,6 +540,7 @@ private:
 	void eventKeyDownBinding_CopyTrack();
 	void eventKeyDownBinding_PasteTrack();
 	void eventKeyDownBinding_TransparentPasteTrack();
+	void eventKeyDownBinding_SelectColumn();
 
 	void eventKeyDownBinding_CutPattern();
 	void eventKeyDownBinding_CopyPattern();
@@ -512,9 +549,10 @@ private:
 
 	void eventKeyCharBinding_Undo();
 	void eventKeyCharBinding_Redo();
-	void eventKeyCharBinding_Cut();		// Operates on block
-	void eventKeyCharBinding_Copy();	// Operates on block
-	void eventKeyCharBinding_Paste();   // Operates on block
+	void eventKeyCharBinding_Cut();		      // Operates on block
+	void eventKeyCharBinding_Copy();	      // Operates on block
+	void eventKeyCharBinding_Paste();         // Operates on block
+	void eventKeyCharBinding_PasteStep();     // Operates on block
 	void eventKeyCharBinding_TransparentPaste();
 	void eventKeyCharBinding_SelectAll();
 	void eventKeyCharBinding_MuteChannel();
@@ -522,6 +560,8 @@ private:
 	void eventKeyCharBinding_Interpolate();
 
 public:
+	void eventKeyCharBinding_PasteStepFill(); // Operates on block
+											  
 	enum AdvanceCodes
 	{
 		AdvanceCodeJustUpdate,

@@ -76,8 +76,11 @@ PPListBox::PPListBox(pp_int32 id, PPScreen* parentScreen, EventListenerInterface
 	autoHideHScroll(true),
 
 	showIndex(false),
-	hexIndex(false),
+	hexIndex(true),
 	indexBaseCount(1),
+
+	highLightRangeStart(-1),
+	highLightRangeStop(-1),
 
 	showSelectionAlways(showSelectionAlways),
 	selectionVisible(true),
@@ -239,17 +242,21 @@ void PPListBox::paint(PPGraphicsAbstract* g)
 
 			g->setRect(currentRect);
 		}
-
 		if (showIndex)
 		{
 			char strIndex[10];
-		
-      if( hexIndex ){
-        PPTools::convertToHex(strIndex, i + indexBaseCount, maxDigits);
-      }else{
-        PPTools::convertToDec(strIndex, i + indexBaseCount, maxDigits);
-      }
-		  g->setColor(*indexColor);	
+
+			if( hexIndex ){
+				PPTools::convertToHex(strIndex, i + indexBaseCount, maxDigits);
+			}else{
+				PPTools::convertToDec(strIndex, i + indexBaseCount, maxDigits);
+			}
+			g->setColor(*indexColor);	
+
+			if( i >= highLightRangeStart && i <= highLightRangeStop ){ 
+				g->setColor(PPUIConfig::getInstance()->getColor(PPUIConfig::ColorDefaultButtonText));
+			}
+
 			g->drawString(strIndex, location.x + 2, pos);
 		}
 		
@@ -280,6 +287,10 @@ void PPListBox::paint(PPGraphicsAbstract* g)
 		}
 
 		g->setColor(colorQueryListener ? colorQueryListener->getColor(i, *this) : *textColor);
+
+		if( i >= highLightRangeStart && i <= highLightRangeStop ){ 
+			g->setColor(PPUIConfig::getInstance()->getColor(PPUIConfig::ColorDefaultButtonText));
+		}
 
 		g->drawString(*items->get(i), location.x + xOffset - (startPos*font->getCharWidth()), pos);
 
@@ -780,10 +791,11 @@ placeCursor:
 
 
 		case eKeyDown:
-		{	
-			if (caughtControl)
+		{
+			// prevent double triggers for kb shortcuts directly adressing this control
+			if (caughtControl )
 				break;
-		
+
 			if (selectionIndex < 0 ||
 				selectionIndex >= items->size()/* ||
 				columnSelectionStart < 0*/)
@@ -1032,8 +1044,9 @@ pp_int32 PPListBox::handleEvent(PPObject* sender, PPEvent* event)
 			pp_int32 visibleItems = getNumVisibleItems();
 
 			startIndex += event->getMetaData();
-			if (startIndex + visibleItems > items->size())
+			if (startIndex + visibleItems >= items->size())
 				startIndex = items->size() - visibleItems;
+      else startIndex++;
 
 			float v = (float)(items->size() - visibleItems);
 
@@ -1068,6 +1081,7 @@ pp_int32 PPListBox::handleEvent(PPObject* sender, PPEvent* event)
 			startIndex -= event->getMetaData();
 			if(startIndex < 0)
 				startIndex = 0;
+      else startIndex--;
 			
 			pp_int32 visibleItems = getNumVisibleItems();
 			

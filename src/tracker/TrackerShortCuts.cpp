@@ -47,6 +47,8 @@
 #include "SectionInstruments.h"
 #include "SectionTranspose.h"
 #include "SectionDiskMenu.h"
+#include "ScopesControl.h"
+#include "TrackerSettingsDatabase.h"
 
 void Tracker::sendNoteDown(mp_sint32 note, pp_int32 volume/* = -1*/)
 {
@@ -90,6 +92,7 @@ void Tracker::processShortcutsMilkyTracker(PPEvent* event)
 	{
 		pp_uint16 keyCode = *((pp_uint16*)event->getDataPtr());
 		pp_uint16 scanCode = *(((pp_uint16 *)event->getDataPtr()) + 1);
+		bool isEditing = screen->getFocusedControl() == static_cast<PPControl*>(getPatternEditorControl());
 
 		if (::getKeyModifier() == (KeyModifierALT))
 		{
@@ -149,7 +152,6 @@ void Tracker::processShortcutsMilkyTracker(PPEvent* event)
 processBindings:
 				pp_int32 keyModifier = ::getKeyModifier(); 
 				bool res = executeBinding(eventKeyDownBindings, keyCode);
-
 				if (res && !isActiveEditing())
 					event->cancel();
 					
@@ -173,8 +175,6 @@ processBindings:
 			case VK_END:
 			case VK_PRIOR:
 			case VK_NEXT: {
-				if (screen->getModalControl())
-					break;
 
 				if (!::getKeyModifier() ||
 					::getKeyModifier() == KeyModifierALT ||
@@ -212,8 +212,22 @@ processBindings:
 								break;
 						}
 					}
-					getPatternEditorControl()->dispatchEvent(event);
-					event->cancel();
+					if (!::getKeyModifier() )
+					{
+						switch (keyCode)
+						{
+							// Stop following song if user wants to navigate current pattern 
+							case VK_UP:
+							case VK_DOWN:
+								setFollowSong(false);
+								break;
+
+						}
+					}
+					if (isEditing){
+						getPatternEditorControl()->dispatchEvent(event);
+						event->cancel();
+					}
 				}
 				else if (::getKeyModifier() == KeyModifierCTRL)
 				{
@@ -225,8 +239,15 @@ processBindings:
 						case VK_DOWN:
 						case VK_NEXT:
 						case VK_PRIOR:
+							screen->setFocus(listBoxInstruments);
 							listBoxInstruments->dispatchEvent(event);
 							event->cancel();
+
+							bool editing = screen->getFocusedControl() == static_cast<PPControl*>(getPatternEditorControl());
+							if (editing && editMode == EditModeMilkyTracker ){
+								patternEditorControl->updateUnderCursor( 0, keyCode == VK_UP || keyCode == VK_NEXT ? 1 : -1);
+							}
+							return;
 							break;
 					}
 				}
@@ -239,6 +260,7 @@ processBindings:
 						case VK_DOWN:
 						case VK_NEXT:
 						case VK_PRIOR:
+							screen->setFocus(listBoxSamples);
 							listBoxSamples->dispatchEvent(event);
 							event->cancel();
 							break;
@@ -247,6 +269,9 @@ processBindings:
 				}
 			}
 
+		}
+		if (::getKeyModifier() == (KeyModifierSHIFT) && !screen->hasFocusModal() ){
+			doASCIISTEP16(keyCode, ::getKeyModifier() == (KeyModifierCTRL) );
 		}
 		
 	}
@@ -268,7 +293,7 @@ processBindings:
 				PatternEditorControl* patternEditorControl = getPatternEditorControl();
 				
 				pp_int32 note = patternEditorControl->ScanCodeToNote(scanCode);				
-				
+			
 				recorderLogic->sendNoteUpToPatternEditor(event, note, patternEditorControl);	
 			}
 		}
@@ -654,7 +679,7 @@ processOthers:
 			default:
 				processShortcutsMilkyTracker(event);
 
-				if (screen->getModalControl())
+				if (screen->hasFocusModal())
 					/*break;*/return;
 
 				if (recorderLogic->getRecordMode())
@@ -781,4 +806,36 @@ bool Tracker::processMessageBoxShortcuts(PPEvent* event)
 	}
 
 	return false;
+}
+
+void Tracker::doASCIISTEP16( pp_uint8 character, bool chselect ){
+	// check for ASCIISTEP16 events
+	PatternEditorTools::Position& cursor = getPatternEditor()->getCursor();
+	pp_int32 stepsize = getPatternEditorControl()->getRowInsertAdd() + 1;
+	pp_int32 bar      = cursor.row / (16*stepsize);
+	pp_int32 step     = ASCIISTEP16(character,bar) * stepsize;
+	pp_int32 ch       = ASCIISTEP16_channel(character);
+	if ( ch > -1 ){
+		if( chselect ){
+			PatternEditor *p = getPatternEditor();
+			PatternEditorTools::Position& cursor = p->getCursor();
+			cursor.channel = ch < p->getNumChannels() ? ch : cursor.channel;
+			getPatternEditorControl()->setChannel( cursor.channel, 0 );
+		}else{
+			muteChannels[ch] = !muteChannels[ch];
+			bool mute = muteChannels[ch];
+			playerController->muteChannel(ch,mute);
+			scopesControl->muteChannel(ch,mute);
+			getPatternEditorControl()->muteChannel(ch,mute);
+			patternEditorControl->muteChannel( ch, mute ); // ASCIISTEP16 mute toggle
+		}
+		updatePatternEditorControl(true);
+	}
+	if ( step > -1 ){
+		PatternEditorTools::Position cursor;
+		// write ASCIISTEP16 step
+		pp_uint32 note = TONOTE(getPatternEditor()->getCurrentOctave(),0);
+		getPatternEditor()->writeStep( patternEditorControl->getCurrentChannel(), step, note, bar * (16*stepsize),true);
+		updatePatternEditorControl(true);
+	}
 }

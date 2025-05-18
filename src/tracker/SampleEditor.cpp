@@ -38,6 +38,8 @@
 #include "FilterParameters.h"
 #include "SampleEditorResampler.h"
 #include "PlayerMaster.h"
+#include "Addon.h"
+#include "SampleLoaderSF2.h"
 
 #define ZEROCROSS(a,b) (a > 0.0 && b <= 0.0 || a < 0.0 && b >= 0.0)
 
@@ -194,12 +196,13 @@ void SampleEditor::prepareUndo()
 
 void SampleEditor::finishUndo()
 {
+	lastOperationDidChangeSize = before == NULL || (sample->samplen != before->getSampLen());
+
 	if (undoStackEnabled && undoStackActivated && undoStack) 
 	{ 
 		// first of all the listener should get the chance to adjust
 		// user data according to our new changes BEFORE we actually save
 		// the new state in the undo stack for redo
-		lastOperationDidChangeSize = (sample->samplen != before->getSampLen());					
 		notifyListener(NotificationChangesValidate);
 		
 		undoUserData.clear();
@@ -210,7 +213,7 @@ void SampleEditor::finishUndo()
 										 getSelectionStart(), 
 										 getSelectionEnd(), 
 										 &undoUserData)); 
-		if (*before != after) 
+		if (before != NULL && *before != after) 
 		{ 
 			if (undoStack) 
 			{ 
@@ -426,7 +429,6 @@ bool SampleEditor::isEditableSample() const
 void SampleEditor::enableUndoStack(bool enable)
 {
 	undoStackEnabled = enable;
-	reset();
 }
 
 bool SampleEditor::undo()
@@ -1339,6 +1341,7 @@ void SampleEditor::tool_cropSample(const FilterParameters* par)
 
 void SampleEditor::tool_clearSample(const FilterParameters* par)
 {
+	if( isEmptySample() ) return; // nothing to clear
 	preFilter(NULL, NULL);
 	
 	prepareUndo();
@@ -1786,32 +1789,42 @@ void SampleEditor::tool_foldSample(const FilterParameters* par)
 		return;
 
 	pp_int32 sStart = 0;
-	pp_int32 sEnd = sample->samplen/2;
+	pp_int32 sEnd = sample->samplen;
+	pp_int32 sMiddle = sample->samplen/2;
 
 	preFilter(&SampleEditor::tool_foldSample, par);
 	
 	prepareUndo();
 	
 	pp_int32 i;
-	bool is16Bit = (sample->type & 16);
+	bool xfade = false;
 
+	if( par != NULL && par->getNumParameters() > 0 ){
+		xfade = par->getParameter(0).floatPart > 0.0f;
+	}
+	
 	// mix first half with second half
-	for (i = 0;  i < sEnd; i++){
-		mp_sint32 mix = is16Bit ? sample->getSampleValue(i)*0.5 + sample->getSampleValue(i+sEnd)*0.5
-		                        : sample->getSampleValue(i)*0.5 + sample->getSampleValue(i+sEnd)*0.5;
+	for (i = 0;  i < sMiddle; i++){
+		float fadein   = xfade ? (1.0/float(sMiddle)) * i       : 1.0;
+		float fadeout  = xfade ? 1.0- ((1.0/float(sMiddle)) * i) : 1.0;
+		mp_sint32 mix = fadein  *sample->getSampleValue(i % sEnd)*0.5 + 
+						fadeout  *sample->getSampleValue( (i+sMiddle) % sEnd )*0.5;
 		sample->setSampleValue( i, mix);
 	}
+
+	// store 1st half in clipboard
+	setSelectionStart(0);
+	setSelectionEnd(sMiddle);
+	cropSample();
+
+	setRepeatStart(0);
+	setRepeatEnd(sMiddle);
+	setLoopType(1);
 
 	finishUndo();	
 	
 	postFilter();
-	// store 1st half in clipboard
-	setSelectionStart(0);
-	setSelectionEnd(sEnd);
-	cropSample();
-	setRepeatStart(0);
-	setRepeatEnd(sEnd);
-	setLoopType(1);
+
 }
 
 void SampleEditor::tool_scaleSample(const FilterParameters* par)
@@ -3268,6 +3281,13 @@ pp_uint32 SampleEditor::convertSmpPosToMillis(pp_uint32 pos, pp_int32 relativeNo
 	return (pp_uint32)(((double)pos / c4spd) * 1000.0);
 }
 
+// convolution with clipboard
+void SampleEditor::tool_convolution(const FilterParameters* par)
+{
+	tool_reverb(par);
+}
+
+// convolution reverb (default whitenoise IR, or clipboard)
 void SampleEditor::tool_reverb(const FilterParameters* par)
 { 
 	if (isEmptySample())
@@ -3296,20 +3316,58 @@ void SampleEditor::tool_reverb(const FilterParameters* par)
 	
 	prepareUndo();
 
+	bool convolveWithClipboard = par->getNumParameters() > 2;
+
 	pp_int32 sLength = sEnd - sStart;
 	float ratio   = par->getParameter(0).floatPart / 100.0f;
-    pp_uint32 verb_size = 700 * (pp_uint32)par->getParameter(1).floatPart;
-    pp_int32 newSampleSize = sLength + verb_size;
+    pp_uint32 size;
+    pp_int32 newSampleSize;
+
+	// default settings for reverb & soothe
+	Convolver::FX fx;
+	fx.convolve   = 100.0f;
+	fx.contrast   = 0.0f;
+	fx.windowsize = 100.0f;
 
 	// create buffers (smpout will be calloc'ed by reverb)
 	float* smpin;
 	float* smpout;
+	float* impulseResponse;
+
+	if( convolveWithClipboard ){
+
+		ClipBoard* clipBoard = ClipBoard::getInstance();
+
+		if (!ClipBoard::getInstance()->isEmpty()){
+			fx.convolve       = par->getParameter(2).floatPart;  // soothe
+			if( par->getNumParameters() > 3 ){
+				fx.contrast       = par->getParameter(3).floatPart; 
+				fx.rotation       = par->getParameter(4).floatPart; 
+				fx.randomphase    = par->getParameter(5).floatPart; 
+				fx.windowsize     = par->getParameter(6).floatPart; 
+			}
+			pp_int32 cSize = clipBoard->getWidth();
+			size = (pp_uint32)( (float(cSize)/100.0f) * par->getParameter(1).floatPart );
+			mp_sbyte *ir = clipBoard->getBuffer();
+			impulseResponse = (float*)malloc(size * sizeof(float));
+			for (pp_int32 i = 0; i < size; i++) {
+			  impulseResponse[i] = getFloatSampleFromWaveform(i, ir );
+			}
+		}
+	}
+ 
+	if( !convolveWithClipboard ){
+		size = 700 * (pp_uint32)par->getParameter(1).floatPart;
+	}
+	newSampleSize = sLength + size;
+
 	smpin = (float*)calloc(newSampleSize,  sizeof(float));
 	for (pp_int32 i = 0; i < newSampleSize; i++) { // copy source (and pad with zeros)
 		smpin[i] = i < sLength ? this->getFloatSampleFromWaveform(i+sStart) : 0.0;
 	}
 
-	int outlength = Convolver::reverb( smpin, &smpout, newSampleSize, verb_size);
+	int outlength = convolveWithClipboard ? Convolver::reverb( smpin, &smpout, newSampleSize, size, impulseResponse, &fx )
+									      : Convolver::reverb( smpin, &smpout, newSampleSize, size);
 
 	for (pp_int32 i = sStart; i < sStart+outlength; i++) {
 		pp_uint32 pos = i % sEnd;
@@ -3323,6 +3381,7 @@ void SampleEditor::tool_reverb(const FilterParameters* par)
 	
 	postFilter();
 
+	if( convolveWithClipboard ) free(impulseResponse);
 	free(smpin);
 	free(smpout);
 }
@@ -3722,25 +3781,29 @@ void SampleEditor::tool_delay(const FilterParameters* par)
 
 void SampleEditor::tool_synth(const FilterParameters* par)
 {
-	preFilter(&SampleEditor::tool_synth, par);
+  prepareUndo();
+  preFilter(&SampleEditor::tool_synth, par);
 
-	prepareUndo();
+  if( !isEmptySample() ) clearSample();
 
   // update controls just to be sure
   for( int i = 0; i < synth->getMaxParam(); i++ ){
     synth->setParam(i, (float)par->getParameter(i).floatPart );
   }
   
-  //enableUndoStack(false);
+  // dont affect undo stack when synths call sampleeditor funcs
+  enableUndoStack(false); 
+
   synth->process( NULL,NULL);
-  //enableUndoStack(true);
 
   // serialize synth to samplename 
-  PPString preset = synth->ASCIISynthExport();
-  memcpy( sample->name, preset.getStrBuffer(), MP_MAXTEXT );
+  if( !synth->synth->facade ){
+	  PPString preset = synth->ASCIISynthExport();
+	  memcpy( sample->name, preset.getStrBuffer(), MP_MAXTEXT );
+  }
+  enableUndoStack(true);
 
   finishUndo();
-
   postFilter();
 }
 
@@ -3944,6 +4007,37 @@ void SampleEditor::tool_vocodeSample(const FilterParameters* par)
 
 		setFloatSampleInWaveform(si, o * (par->getParameter(5).floatPart / 100.0f) );
 	}
+
+	finishUndo();
+
+	postFilter();
+}
+	
+void SampleEditor::tool_addon(const FilterParameters* par)
+{
+	preFilter(&SampleEditor::tool_addon, par);
+
+	prepareUndo();
+
+	pp_uint8 looptype = getLoopType(); // remember
+	int ret = Addon::runMenuItem(par);
+	setLoopType(looptype);             // revert back (because new wav-file was imported)
+
+	finishUndo();
+
+	postFilter();
+}
+
+void SampleEditor::tool_soundfont(const FilterParameters* par)
+{
+	preFilter(&SampleEditor::tool_addon, par);
+
+	prepareUndo();
+
+	SampleLoaderSF2 *loader;
+	loader = new SampleLoaderSF2( (const SYSCHAR *)SampleLoaderSF2::lastSF2File, *module );
+	loader->loadSampleIndexToSample( sample, 1, (int)par->getParameter(0).floatPart );
+	delete loader;
 
 	finishUndo();
 

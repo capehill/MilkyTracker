@@ -68,6 +68,7 @@
 #include "DialogHandlers.h"
 #include "DialogChannelSelector.h"
 #include "DialogZap.h"
+#include "DialogSliders.h"
 // Helper class to invoke tools which need parameters
 #include "ToolInvokeHelper.h"
 
@@ -273,8 +274,8 @@ bool Tracker::isEditingCurrentOrderlistPattern()
 pp_int32 Tracker::getInstrumentToPlay(pp_int32 note, PlayerController*& playerController)
 {
   PPControl* ctrl = screen->getModalControl();
-	if (dialog != NULL && ctrl) // popupdialogs have no use here (+should allow keyjazz for fxdialogs)
-  {
+	if (dialog != NULL && ctrl && screen->hasFocusModal() ) // popupdialogs have no use here (+should allow keyjazz for fxdialogs)
+    {
 		note--;
 	
 		PPContainer* container = static_cast<PPContainer*>(ctrl);
@@ -286,7 +287,7 @@ pp_int32 Tracker::getInstrumentToPlay(pp_int32 note, PlayerController*& playerCo
 		PPListBox* listBoxDstSmp = static_cast<PPListBox*>(container->getControlByID(INSTRUMENT_CHOOSER_LIST_DST2));
 		PPListBox* listBoxDstModule = static_cast<PPListBox*>(container->getControlByID(INSTRUMENT_CHOOSER_LIST_DST3));
 		
-		if (!listBoxSrc || !listBoxDst)
+		if ( screen->getClassic() && (!listBoxSrc || !listBoxDst) )
 			return -1;
 
 		PPListBox* focusedListBox = static_cast<PPListBox*>(container->getFocusedControl());
@@ -303,6 +304,7 @@ pp_int32 Tracker::getInstrumentToPlay(pp_int32 note, PlayerController*& playerCo
 				return focusedListBox->getSelectedIndex() + 1;
 		}
 		
+		if (!listBoxSrc || !listBoxDst)
 		// focus is on instruments		
 		if (focusedListBox == listBoxSrc ||
 			focusedListBox == listBoxSrcModule)
@@ -348,7 +350,8 @@ pp_int32 Tracker::getInstrumentToPlay(pp_int32 note, PlayerController*& playerCo
 			return -1;
 		}
 		
-		return focusedListBox->getSelectedIndex() + 1;
+		return screen->getClassic() ? focusedListBox->getSelectedIndex() + 1
+						            : getPatternEditorControl()->isInstrumentEnabled() ? listBoxInstruments->getSelectedIndex() + 1 : 0;
 	}
 	else
 	{
@@ -571,9 +574,8 @@ pp_int32 Tracker::handleEvent(PPObject* sender, PPEvent* event)
 			caughtMouseInUpperLeftCorner = false;
 	}
 #endif
-	else if (event->getID() == eCommand || event->getID() == eCommandRepeat)
+	else if (event->getID() == eCommand)
 	{
-
 		switch (reinterpret_cast<PPControl*>(sender)->getID())
 		{
 			// test
@@ -646,6 +648,14 @@ pp_int32 Tracker::handleEvent(PPObject* sender, PPEvent* event)
 				if (event->getID() != eCommand)
 					break;
 				eventKeyDownBinding_ToggleFollowSong();
+				break;
+			}
+
+			case BUTTON_PATTERN_SHARPFLAT:
+			{
+				if (event->getID() != eCommand)
+					break;
+				eventKeyDownBinding_ToggleSharpFlat();
 				break;
 			}
 
@@ -773,8 +783,10 @@ pp_int32 Tracker::handleEvent(PPObject* sender, PPEvent* event)
 				if (event->getID() != eCommand)
 					break;
 
-				if (dialog)
+				if (dialog){
 					delete dialog;
+					dialog = NULL;
+				}
 				
 				if (responder)
 					delete responder;
@@ -1128,6 +1140,13 @@ pp_int32 Tracker::handleEvent(PPObject* sender, PPEvent* event)
 
 			case BUTTON_PATTERN_CAPTURE:
 				eventKeyDownBinding_InvokePatternCapture();
+				eventKeyDownBinding_InvokeMainScreen();
+				eventKeyDownBinding_InvokeSectionSamples();
+				break;
+
+			case BUTTON_PATTERN_CAPTURE_OVERDUB:
+				eventKeyDownBinding_InvokePatternCaptureOverdub();
+				eventKeyDownBinding_InvokeMainScreen();
 				eventKeyDownBinding_InvokeSectionSamples();
 				break;
 
@@ -1200,10 +1219,19 @@ pp_int32 Tracker::handleEvent(PPObject* sender, PPEvent* event)
 					getPatternEditorControl()->setCurrentInstrument(listBoxInstruments->getSelectedIndex() + 1);
 					updateSampleEditorAndInstrumentSection(false);
 				}
-				
 				screen->update();
 				break;
 			}
+
+			case BUTTON_INSTRUMENTS_ROUNDROBIN:{
+				PPButton* button = reinterpret_cast<PPButton*>(sender);
+			    PatternEditorControl::RoundRobin *rr = getPatternEditorControl()->getRoundRobin();
+				rr->button = button;
+				updateRoundRobin(true);
+				screen->paintControl(button);
+				screen->update();
+				break;
+		    }
 
 			case BUTTON_TAB_OPEN:
 			{
@@ -1291,8 +1319,10 @@ pp_int32 Tracker::handleEvent(PPObject* sender, PPEvent* event)
 			// new instrument has been selected
 			case LISTBOX_INSTRUMENTS:
 			{
+			    PatternEditorControl::RoundRobin *rr = getPatternEditorControl()->getRoundRobin();
 				pp_int32 index = *((pp_int32*)event->getDataPtr()) + 1;
 				selectInstrument(index);		
+				updateRoundRobin(false);
 				screen->update();
 				break;
 			}
@@ -1733,6 +1763,7 @@ pp_int32 Tracker::handleEvent(PPObject* sender, PPEvent* event)
 
 					case PatternEditorControl::AdvanceCodeColumn:
 						backtraceInstrument(0,false);
+						getPatternEditorControl()->updateStatus();
 						break;
 				}
 				break;
@@ -2147,6 +2178,7 @@ void Tracker::updateSongRow(bool checkFollowSong/* = true*/)
 {
 	if (checkFollowSong && !shouldFollowSong())
 		return;
+	else getPatternEditorControl()->updateStatus();
 		
 	mp_sint32 row = getPatternEditorControl()->getCurrentRow();
 	mp_sint32 pos = listBoxOrderList->getSelectedIndex();
@@ -2163,6 +2195,7 @@ void Tracker::selectInstrument(pp_int32 instrument)
 	getPatternEditorControl()->setCurrentInstrument(instrument);
 	
 	sectionTranspose->setCurrentInstrument(instrument, false);
+	enableInstrument(true); // important: re-enable in case turned off (by numpad 0)
 
 	updateSamplesListBox(false);
 
@@ -2171,9 +2204,10 @@ void Tracker::selectInstrument(pp_int32 instrument)
 	updateSampleEditor(false);
 	// update instrument/sample editor
 	sectionInstruments->update(false);
-
 	for (pp_int32 i = 0; i < sections->size(); i++)
 		sections->get(i)->notifyInstrumentSelect(instrument);
+
+	screen->update();
 }
 
 void Tracker::fillInstrumentListBox(PPListBox* listBox, ModuleEditor* moduleEditor/* = NULL*/)
@@ -2539,6 +2573,7 @@ pp_uint32 Tracker::fileTypeToHint(FileTypes type)
 		case FileTypes::FileTypeSongAllSamples:
 		case FileTypes::FileTypeSampleWAV:
 		case FileTypes::FileTypeSampleIFF:
+		case FileTypes::FileTypeSampleSF2:
 			return DecompressorBase::HintSamples;
 
 		default:
@@ -2747,6 +2782,10 @@ bool Tracker::loadTypeFromFile(FileTypes eType, const PPSystemString& fileName, 
 		case FileTypes::FileTypeSongAllInstruments:
 		{
 			loadingParameters.res = moduleEditor->loadInstrument(loadingParameters.filename, listBoxInstruments->getSelectedIndex());
+			if( loadingParameters.filename.compareExtensions( PPString(".sf2") ) == 0 ){ 
+				sectionSamples->getSampleEditorControl()->invokeSoundfont();
+				loadingParameters.res = true;
+			}
 			sectionInstruments->updateAfterLoad();
 			break;
 		}
@@ -2764,8 +2803,10 @@ bool Tracker::loadTypeFromFile(FileTypes eType, const PPSystemString& fileName, 
 			else if (numSampleChannels > 1 && 
 					 !settingsDatabase->restore("AUTOMIXDOWNSAMPLES")->getIntValue())
 			{
-				if (dialog)
+				if (dialog){
 					delete dialog;
+					dialog = NULL;
+				}
 				
 				if (responder)
 					delete responder;
@@ -2803,6 +2844,9 @@ bool Tracker::loadTypeFromFile(FileTypes eType, const PPSystemString& fileName, 
 																 listBoxInstruments->getSelectedIndex(), 
 																 listBoxSamples->getSelectedIndex(), 
 																 chnIndex);
+			if( loadingParameters.filename.compareExtensions( PPString(".sf2") ) == 0 ){
+				sectionSamples->getSampleEditorControl()->invokeSoundfont();
+			}
 
 			sectionSamples->updateAfterLoad();
 			break;
@@ -3100,16 +3144,11 @@ void Tracker::saveType(FileTypes eType)
 	{
 		prepareLoadSaveUI();
 	
-		sectionDiskMenu->selectSaveType(eType);
-		
-		if (eType == FileTypes::FileTypeSongWAV)
-			sectionDiskMenu->setModuleTypeAdjust(false);
-		
 		eventKeyDownBinding_InvokeSectionDiskMenu();
-		
-		if (eType == FileTypes::FileTypeSongWAV)
-			sectionDiskMenu->setModuleTypeAdjust(true);
-	
+
+		sectionDiskMenu->setModuleTypeAdjust(true);
+		sectionDiskMenu->switchState( SectionDiskMenu::BrowseModules );
+
 		finishLoadSaveUI();
 	}
 	else
@@ -3210,8 +3249,10 @@ void Tracker::buildMODSaveErrorWarning(pp_int32 error)
 									 "* Volume column is not used        \n"\
 									 "* Only effects between 0 and F     \n\nSave anyway?"};
 	
-	if (dialog)
+	if (dialog){
 		delete dialog;
+		dialog = NULL;
+	}
 	
 	if (responder)
 		delete responder;
@@ -3265,36 +3306,37 @@ void Tracker::backtraceInstrument(pp_uint8 channelIncrement, bool currentPosOnly
 	pp_int8 chan = cursor.channel + channelIncrement;
 	pp_int32 ins  = -1;
 
-  // check current position	
-  patternTools.setPosition( p->getPattern(), chan, cursor.row);
-  if ( patternTools.getNote() != 0 ){ ins = patternTools.getInstrument();	}
+    // check current position	
+	patternTools.setPosition( p->getPattern(), chan, cursor.row);
+	if ( patternTools.getNote() != 0 ){ ins = patternTools.getInstrument();	}
 
 	// backtrace last instrument on pattern-channel
-	if( ins == -1 && !currentPosOnly ){
-    for (pp_int32 i = cursor.row; i >= 0; i--)
-    {
-      patternTools.setPosition( p->getPattern(), chan, i);
-      if ( patternTools.getNote() != 0 ){
-        ins = patternTools.getInstrument();	
-        break;
-      }
-      if( currentPosOnly ) return;
-    }
-  }
-
-	// find future note if backtrace wasn't possible
-	if( ins == -1 && !currentPosOnly ){
-		for (pp_int32 i = cursor.row; i < p->getNumRows(); i++)
+	if( ins < 1 && !currentPosOnly ){
+		for (pp_int32 i = cursor.row; i >= 0; i--)
 		{
 			patternTools.setPosition( p->getPattern(), chan, i);
-      if( patternTools.getNote() != 0 ){
-        ins = patternTools.getInstrument();
-        break;
-      }
+			pp_int32 lastIns = patternTools.getInstrument();	
+			if ( patternTools.getNote() != 0 && lastIns > 0){
+				ins = lastIns;
+				break;
+			}
 		}
 	}
 
-	if( ins == -1 ) return;
+	// find future note if backtrace wasn't possible
+	if( ins < 1 && !currentPosOnly ){
+		for (pp_int32 i = cursor.row; i < p->getNumRows(); i++)
+		{
+			patternTools.setPosition( p->getPattern(), chan, i);
+			pp_int32 lastIns = patternTools.getInstrument();	
+			if ( patternTools.getNote() != 0 && lastIns > 0){
+				ins = lastIns;
+				break;
+			}
+		}
+	}
+
+	if( ins < 1 ) return;
 	getPatternEditor()->setCurrentInstrument(ins);
 	moduleEditor->setCurrentInstrumentIndex(ins-1);
 	listBoxInstruments->setSelectedIndex(ins-1);

@@ -3,6 +3,8 @@ MilkyTracker - Cross-Platform XM Tracker
 
 [![AppVeyor Build Status](https://ci.appveyor.com/api/projects/status/github/milkytracker/MilkyTracker?branch=master&svg=true)](https://ci.appveyor.com/project/Deltafire/milkytracker)
 
+<img src="https://milkytracker.org/img/milkytracker.gif" style="max-width:600px"/>
+
 MilkyTracker is an multi-platform music application for creating .MOD
 and .XM module files. It attempts to recreate the module replay and
 user experience of the popular DOS program Fasttracker II, with
@@ -11,9 +13,7 @@ compatibility.
 
 ## [⬇ DOWNLOAD](https://milkytracker.org/downloads)
 
-<img src="https://github.com/coderofsalvation/MilkyTrackerX/raw/master/res/milkytrackerX.gif" width="100%"/>
-
-> For experimental beta builds see [MilkytrackerX](https://github.com/coderofsalvation/MilkytrackerX)
+## [CHAT COMMUNITY](https://milkytracker.org/community/)
 
 Refer to http://milkytracker.org/about for further details.
 

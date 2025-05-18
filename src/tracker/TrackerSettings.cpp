@@ -128,7 +128,7 @@ void Tracker::buildDefaultSettings()
 #endif
 
 	// flat controls
-	settingsDatabase->store("FLATCONTROLS", 1);
+	settingsDatabase->store("FLATCONTROLS", 0);
 	
 	// classic UX
 	settingsDatabase->store("CLASSIC", 0);
@@ -175,7 +175,7 @@ void Tracker::buildDefaultSettings()
 	// Modulo for the second pattern highlight
 	settingsDatabase->store("HIGHLIGHTMODULO2", 8);
 	// Modulo for the second pattern highlight
-	settingsDatabase->store("HIGHLIGHTROW2", 0);
+	settingsDatabase->store("HIGHLIGHTROW2", 1);
 
 	// Enable sample undobuffer by default
 	settingsDatabase->store("SAMPLEEDITORUNDOBUFFER", 1);
@@ -205,7 +205,7 @@ void Tracker::buildDefaultSettings()
 	// sample editor last settings
 	settingsDatabase->store("SAMPLEEDITORLASTVALUES", "");
 	// no virtual channels for instrument playback
-	settingsDatabase->store("VIRTUALCHANNELS", 5); // be nice to realtime chords
+	settingsDatabase->store("VIRTUALCHANNELS", 16); // be nice to realtime chords
     // default number of XM channel limit
     settingsDatabase->store("XMCHANNELLIMIT", 32);
 	// enable multichn recording by default
@@ -505,8 +505,11 @@ void Tracker::applySettingByKey(PPDictionaryKey* theKey, TMixerSettings& setting
 	}
 	else if (theKey->getKey().compareTo("SAMPLEEDITORUNDOBUFFER") == 0)
 	{
-		if (sampleEditor)
+		if (sampleEditor){
 			sampleEditor->enableUndoStack(v2 != 0);
+			sampleEditor->reset();
+		}
+
 	}
 	else if (theKey->getKey().compareTo("SAMPLEEDITORDECIMALOFFSETS") == 0)
 	{
@@ -683,7 +686,6 @@ void Tracker::applySettingByKey(PPDictionaryKey* theKey, TMixerSettings& setting
 			pp_int32 i = str.getIntValue();
 			str = theKey->getStringValue();
 			sectionInstruments->setEncodedEnvelope(SectionInstruments::EnvelopeTypeVolume, i, str);
-      printf("env %i %s\n",i,str.getStrBuffer());
 		}
 	}
 	else if (theKey->getKey().startsWith("PREDEFENVELOPEPANNING_"))
