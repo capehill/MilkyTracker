@@ -35,12 +35,14 @@
 #include "PlayerLogic.h"
 #include "RecorderLogic.h"
 #include "ModuleEditor.h"
+#include "SampleEditor.h"
 
 #include "PPUIConfig.h"
 #include "Container.h"
 #include "ListBox.h"
 #include "ListBoxFileBrowser.h"
 #include "PatternEditorControl.h"
+#include "PatternTools.h"
 
 #include "ControlIDs.h"
 #include "TrackerConfig.h"
@@ -179,6 +181,7 @@ void Tracker::initKeyBindings()
 	eventKeyDownBindingsMilkyTracker->addBinding(VK_DIVIDE, 0, &Tracker::eventKeyDownBinding_InvokeQuickChooseInstrument);	
 
 	eventKeyDownBindingsMilkyTracker->addBinding('V', KeyModifierCTRL | KeyModifierSHIFT, &Tracker::eventKeyDownBinding_InvokePatternCapture);
+	eventKeyDownBindingsMilkyTracker->addBinding('V', KeyModifierCTRL | KeyModifierSHIFT | KeyModifierALT, &Tracker::eventKeyDownBinding_InvokePatternCaptureOverdub);
 
   // brujo's secret sauce 
   eventKeyDownBindingsMilkyTracker->addBinding('J', KeyModifierCTRL, &Tracker::eventKeyDownBinding_BpmPlus);
@@ -375,6 +378,11 @@ void Tracker::eventKeyDownBinding_PlaySong()
 	if (isActiveEditing())
 		return;
 
+	// in milkytracker mode, consider unfocused patterneditor as editing too
+	// that way hitting enter in the filebrowser will not trigger play
+	PPControl* fileBrowsing = sectionDiskMenu->isFileBrowserVisible() ? static_cast<PPControl*>(sectionDiskMenu->getListBoxFiles()) : NULL;
+	if( fileBrowsing && screen->hasFocus(fileBrowsing) ) return;
+
 	playerLogic->playSong();
 }
 
@@ -447,23 +455,25 @@ void Tracker::eventKeyDownBinding_PlayPatternFromTHIRDQUARTER()
 
 void Tracker::eventKeyDownBinding_RotatePanels()
 {
-	if (screen->getModalControl())
-		return;
+	bool isBrowsing = sectionDiskMenu->fileBrowserHasFocus();
 
 	switch( panelrotate ){
-		case PanelRotate::PanelTop:{
-			panelrotate = PanelRotate::PanelTop_Sample;
+		case PanelTop:{
+			panelrotate = PanelTop_Sample;
 			eventKeyDownBinding_InvokeSectionSamples();
+			if( !isBrowsing ) screen->setFocus(listBoxSamples);
 			break;
 		}
-		case PanelRotate::PanelTop_Sample:{
-			panelrotate = PanelRotate::PanelTop_Instrument;
+		case PanelTop_Sample:{
+			panelrotate = PanelTop_Instrument;
 			eventKeyDownBinding_InvokeSectionInstruments();
+			if( !isBrowsing ) screen->setFocus(listBoxInstruments);
 			break;
 		}
-		case PanelRotate::PanelTop_Instrument:{
-			panelrotate = PanelRotate::PanelTop;
+		case PanelTop_Instrument:{
+			panelrotate = PanelTop;
 			sectionSwitcher->showBottomSection(SectionSwitcher::ActiveBottomSectionNone);
+			if( !isBrowsing ) screen->setFocus(listBoxOrderList);
 			break;
 		}
 	}
@@ -503,9 +513,6 @@ void Tracker::eventKeyDownBinding_Stop()
 void Tracker::eventKeyDownBinding_Edit()
 {
 	if (isActiveEditing())
-		return;
-
-	if (screen->getModalControl())
 		return;
 
 	PatternEditorControl* patternEditor = getPatternEditorControl();
@@ -566,7 +573,7 @@ void Tracker::eventKeyDownBinding_SaveAs()
 
 void Tracker::eventKeyDownBinding_NextPattern()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	if (moduleEditor->getCurrentPatternIndex() < 255)
@@ -581,7 +588,7 @@ void Tracker::eventKeyDownBinding_NextPattern()
 	
 void Tracker::eventKeyDownBinding_PreviousPattern()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	if (moduleEditor->getCurrentPatternIndex() > 0)
@@ -597,34 +604,25 @@ void Tracker::eventKeyDownBinding_PreviousPattern()
 // - Invoke sections
 void Tracker::eventKeyDownBinding_InvokeMainScreen()
 {
-	if (screen->getModalControl())
-		return;
-
 	sectionSwitcher->showBottomSection(SectionSwitcher::ActiveBottomSectionNone);
 	sectionSwitcher->showUpperSection(NULL);	
 }
 
 void Tracker::eventKeyDownBinding_InvokeSectionInstruments()
 {
-	if (screen->getModalControl())
-		return;
-
 	sectionSwitcher->showBottomSection(SectionSwitcher::ActiveBottomSectionInstrumentEditor);
 	screen->paint(true, true);
 }
 
 void Tracker::eventKeyDownBinding_InvokeSectionSamples()
 {
-	if (screen->getModalControl())
-		return;
-
 	sectionSwitcher->showBottomSection(SectionSwitcher::ActiveBottomSectionSampleEditor);
 	screen->paint(true, true);
 }
 
 void Tracker::eventKeyDownBinding_InvokeSectionTranspose()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	sectionSwitcher->showUpperSection(sectionTranspose);
@@ -632,7 +630,7 @@ void Tracker::eventKeyDownBinding_InvokeSectionTranspose()
 
 void Tracker::eventKeyDownBinding_InvokeSectionAdvancedEdit()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 	
 	sectionSwitcher->showUpperSection(sectionAdvancedEdit);
@@ -640,7 +638,7 @@ void Tracker::eventKeyDownBinding_InvokeSectionAdvancedEdit()
 
 void Tracker::eventKeyDownBinding_InvokeSectionDiskMenu()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	sectionSwitcher->showUpperSection(sectionDiskMenu, false);
@@ -648,7 +646,7 @@ void Tracker::eventKeyDownBinding_InvokeSectionDiskMenu()
 
 void Tracker::eventKeyDownBinding_InvokeSectionHDRecorder()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	sectionSwitcher->showUpperSection(sectionHDRecorder);
@@ -656,7 +654,7 @@ void Tracker::eventKeyDownBinding_InvokeSectionHDRecorder()
 
 void Tracker::eventKeyDownBinding_InvokeSectionSettings()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 	
 	settingsDatabase->store("FREQTAB", moduleEditor->getFrequency());
@@ -676,7 +674,7 @@ void Tracker::eventKeyDownBinding_InvokeSectionSettings()
 
 void Tracker::eventKeyDownBinding_InvokeSectionQuickOptions()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	sectionSwitcher->showUpperSection(sectionQuickOptions);
@@ -684,7 +682,7 @@ void Tracker::eventKeyDownBinding_InvokeSectionQuickOptions()
 
 void Tracker::eventKeyDownBinding_InvokeSectionOptimize()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	sectionSwitcher->showUpperSection(sectionOptimize);
@@ -692,7 +690,7 @@ void Tracker::eventKeyDownBinding_InvokeSectionOptimize()
 
 void Tracker::eventKeyDownBinding_InvokeSectionAbout()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	sectionSwitcher->showUpperSection(sectionAbout);
@@ -740,6 +738,11 @@ void Tracker::eventKeyDownBinding_ToggleFT2Edit()
 void Tracker::eventKeyDownBinding_ToggleFollowSong()
 {
 	setFollowSong(!getFollowSong());
+}
+
+void Tracker::eventKeyDownBinding_ToggleSharpFlat()
+{
+	PatternTools::switchSharpFlat();
 }
 
 void Tracker::eventKeyDownBinding_ToggleProspectiveMode()
@@ -793,7 +796,7 @@ void Tracker::eventKeyDownBinding_InvokeQuickChooseInstrument()
 
 void Tracker::eventKeyDownBinding_TransposeCurInsTrackDown()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	PatternEditorTools::TransposeParameters tp;
@@ -812,7 +815,7 @@ void Tracker::eventKeyDownBinding_TransposeCurInsTrackDown()
 
 void Tracker::eventKeyDownBinding_TransposeCurInsTrackUp()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	PatternEditorTools::TransposeParameters tp;
@@ -831,7 +834,7 @@ void Tracker::eventKeyDownBinding_TransposeCurInsTrackUp()
 
 void Tracker::eventKeyDownBinding_TransposeCurInsPatternDown()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	PatternEditorTools::TransposeParameters tp;
@@ -850,7 +853,7 @@ void Tracker::eventKeyDownBinding_TransposeCurInsPatternDown()
 
 void Tracker::eventKeyDownBinding_TransposeCurInsPatternUp()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	PatternEditorTools::TransposeParameters tp;
@@ -869,7 +872,7 @@ void Tracker::eventKeyDownBinding_TransposeCurInsPatternUp()
 
 void Tracker::eventKeyDownBinding_TransposeCurInsBlockDown()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	PatternEditorTools::TransposeParameters tp;
@@ -888,7 +891,7 @@ void Tracker::eventKeyDownBinding_TransposeCurInsBlockDown()
 
 void Tracker::eventKeyDownBinding_TransposeCurInsBlockUp()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	PatternEditorTools::TransposeParameters tp;
@@ -909,7 +912,7 @@ void Tracker::eventKeyDownBinding_TransposeCurInsBlockUp()
 
 void Tracker::eventKeyDownBinding_TransposeAllInsTrackDown()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	PatternEditorTools::TransposeParameters tp;
@@ -929,7 +932,7 @@ void Tracker::eventKeyDownBinding_TransposeAllInsTrackDown()
 
 void Tracker::eventKeyDownBinding_TransposeAllInsTrackUp()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	PatternEditorTools::TransposeParameters tp;
@@ -949,7 +952,7 @@ void Tracker::eventKeyDownBinding_TransposeAllInsTrackUp()
 
 void Tracker::eventKeyDownBinding_TransposeAllInsPatternDown()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	PatternEditorTools::TransposeParameters tp;
@@ -969,7 +972,7 @@ void Tracker::eventKeyDownBinding_TransposeAllInsPatternDown()
 
 void Tracker::eventKeyDownBinding_TransposeAllInsPatternUp()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	PatternEditorTools::TransposeParameters tp;
@@ -989,7 +992,7 @@ void Tracker::eventKeyDownBinding_TransposeAllInsPatternUp()
 
 void Tracker::eventKeyDownBinding_TransposeAllInsBlockDown()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	PatternEditorTools::TransposeParameters tp;
@@ -1009,7 +1012,7 @@ void Tracker::eventKeyDownBinding_TransposeAllInsBlockDown()
 
 void Tracker::eventKeyDownBinding_TransposeAllInsBlockUp()
 {
-	if (screen->getModalControl())
+	if (screen->getModalControl() && screen->getClassic())
 		return;
 
 	PatternEditorTools::TransposeParameters tp;
@@ -1066,8 +1069,20 @@ void Tracker::eventKeyDownBinding_InvokePatternCapture()
 	sectionHDRecorder->insIndex = moduleEditor->currentInstrumentIndex;
 	sectionHDRecorder->fromOrder = getOrderListBoxIndex();
 	sectionHDRecorder->toOrder = getOrderListBoxIndex();
-  sectionHDRecorder->setSettingsAllowMuting(true);
+	sectionHDRecorder->setSettingsResampler( settingsDatabase->restore("INTERPOLATION")->getIntValue() );
+	sectionHDRecorder->setSettingsRamping( settingsDatabase->restore("RAMPING")->getIntValue() );
+    sectionHDRecorder->setSettingsAllowMuting(true);
 	sectionHDRecorder->exportWAVAsSample();
+}
+
+void Tracker::eventKeyDownBinding_InvokePatternCaptureOverdub()
+{
+	SampleEditor *s = getSampleEditor();
+	eventKeyDownBinding_InvokePatternCapture();
+	s->selectAll();
+	s->copy();
+	s->undo();
+	s->mixOverflowPasteSample();
 }
 
 void Tracker::eventKeyDownBinding_InvokeHelp()

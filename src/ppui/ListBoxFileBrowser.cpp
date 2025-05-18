@@ -39,6 +39,7 @@ PPListBoxFileBrowser::PPListBoxFileBrowser(pp_int32 id, PPScreen* parentScreen, 
 	directoryPrefix("<DIR>  "), directorySuffix(""),
 	sortAscending(true),
 	cycleFilenames(true),
+	confirmed(false),
 	sortType(SortByName)
 {
 	setRightButtonConfirm(true);
@@ -56,9 +57,31 @@ pp_int32 PPListBoxFileBrowser::dispatchEvent(PPEvent* event)
 	{	
 		pp_uint16 keyCode = *((pp_uint16*)event->getDataPtr());		
 			
-		if (keyCode < 255)
+		if (keyCode < 255 && cycleFilenames)
 			cycle((char)keyCode);
+
 	}
+	if (event->getID() == eRMouseUp || event->getID() == eLMouseDoubleClick ){
+		confirmed = true;
+	}
+
+	if (event->getID() == eKeyUp ){
+
+		pp_uint16 keyCode = *((pp_uint16*)event->getDataPtr());		
+		pp_int32 selectionIndex = PPListBox::getSelectedIndex();
+
+		if( keyCode == VK_RETURN ){ // enter confirms + selects next item
+			PPEvent e(eConfirmed, &selectionIndex, sizeof(selectionIndex));
+			eventListener->handleEvent(reinterpret_cast<PPObject*>(this), &e);
+			parentScreen->paintControl(this);
+			confirmed = true;
+		}
+
+		if( keyCode == VK_UP || keyCode == VK_DOWN ){ // exit keyjazz 
+			confirmed = false;											
+		}
+	}
+
 	return PPListBox::dispatchEvent(event);
 }
 
@@ -102,7 +125,9 @@ void PPListBoxFileBrowser::refreshFiles()
 
 const PPPathEntry* PPListBoxFileBrowser::getPathEntry(pp_int32 index) const
 {
-	return pathEntries.get(index);
+	if(index >= 0 && index < pathEntries.size())
+        return pathEntries.get(index);
+    return NULL;
 }
 
 bool PPListBoxFileBrowser::canGotoHome() const
@@ -407,6 +432,7 @@ void PPListBoxFileBrowser::sortFileList()
 
 void PPListBoxFileBrowser::cycle(char chr)
 {
+	if( confirmed ) return; // don't cycle when instrument/sample was just loaded (allow keyjazz)
 	pp_int32 currentIndex = PPListBox::getSelectedIndex();
 	
 	PPSystemString prefix(chr);

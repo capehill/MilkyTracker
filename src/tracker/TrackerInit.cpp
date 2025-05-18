@@ -285,6 +285,12 @@ void Tracker::initUI()
 	peakLevelControl->setBorderColor(TrackerConfig::colorThemeMain);
 	containerAbout->addControl(peakLevelControl);
 
+    if( !screen->getClassic() ){
+      staticText = new PPStaticText(0, NULL, NULL, PPPoint(4, 14), "patterns", true);
+      staticText->setFont( PPFont::getFont( PPFont::FONT_TINY ) );
+      containerAbout->addControl(staticText);
+    }
+
 	staticText = new PPStaticText(STATICTEXT_ABOUT_HEADING, screen, this, PPPoint(116, 3), "Song title:", true);
 	staticText->setFont(PPFont::getFont(PPFont::FONT_TINY));
 	containerAbout->addControl(staticText);
@@ -472,14 +478,14 @@ void Tracker::initSectionOrderlist(pp_int32 x, pp_int32 y)
 	button = new PPButton(BUTTON_ORDERLIST_SEQENTRY, screen, this, PPPoint(x + 2 + 78 - 2 - 22, y+2+12), PPSize(18, 11));
 	//button->setVerticalText(true);
 	button->setXOffset(-1);
-	button->setText("Seq");
+	button->setText( screen->getClassic() ? "Seq" : "Add" );
 	button->setFont(PPFont::getFont(PPFont::FONT_TINY));
 	containerOrderlist->addControl(button);
 
 	button = new PPButton(BUTTON_ORDERLIST_CLNENTRY, screen, this, PPPoint(x + 2 + 78 - 2 - 22, y+2+12+12), PPSize(18, 11));
 	//button->setVerticalText(true);
 	button->setXOffset(-1);
-	button->setText("Cln");
+	button->setText( screen->getClassic() ? "Cln" : "Dup" );
 	button->setFont(PPFont::getFont(PPFont::FONT_TINY));
 	containerOrderlist->addControl(button);
 
@@ -542,16 +548,10 @@ void Tracker::initSectionOrderlist(pp_int32 x, pp_int32 y)
 	listBoxOrderList->setBorderColor(TrackerConfig::colorThemeMain);
 	listBoxOrderList->setCenterSelection(true);
 	listBoxOrderList->setSelectOnScroll(true);
-  listBoxOrderList->setHexIndex( settingsDatabase->restore("HEXCOUNT")->getIntValue() == 1 );
-  if( !screen->getClassic() ) listBoxOrderList->setTextColor( TrackerConfig::colorPatternEditorEffect );
+	listBoxOrderList->setHexIndex( true ); // the patterneditor is limited to entering hex data 
+    if( !screen->getClassic() ) listBoxOrderList->setTextColor( TrackerConfig::colorPatternEditorEffect );
 
 	containerOrderlist->addControl(listBoxOrderList);
-
-  if( !screen->getClassic() ){
-    staticText = new PPStaticText(0, NULL, NULL, PPPoint(4, 14), "patterns", true);
-    staticText->setFont( PPFont::getFont( PPFont::FONT_TINY ) );
-    containerOrderlist->addControl(staticText);
-  }
 
 	screen->addControl(containerOrderlist);	
 	
@@ -1203,8 +1203,14 @@ void Tracker::initListboxesSection(pp_int32 x, pp_int32 y)
 	button = new PPButton(BUTTON_INSTRUMENTS_MINUS, screen, this, PPPoint(button->getLocation().x + 16, y+dy+tinyButtonOffset), PPSize(15, tinyButtonHeight));
 	button->setText(TrackerConfig::stringButtonMinus);
 	container->addControl(button);
-
+	
 #ifndef __LOWRES__
+
+	button = new PPButton(BUTTON_INSTRUMENTS_ROUNDROBIN, screen, this, PPPoint(button->getLocation().x + 16, y+dy+tinyButtonOffset), PPSize(15, tinyButtonHeight));
+	button->setFont(PPFont::getFont(PPFont::FONT_TINY));
+	button->setText("%");
+	container->addControl(button);
+
 	button = new PPButton(BUTTON_INSTRUMENTEDITOR_CLEAR, screen, sectionInstruments, PPPoint(x+2 + size - 2 - 92, y+dy+tinyButtonOffset), PPSize(30, tinyButtonHeight));
 	button->setFont(PPFont::getFont(PPFont::FONT_TINY));
 	button->setText("Zap");

@@ -66,6 +66,7 @@ add_library(milkyplay STATIC
     SampleLoaderGeneric.cpp
     SampleLoaderIFF.cpp
     SampleLoaderWAV.cpp
+	SampleLoaderSF2.cpp
     XIInstrument.cpp
     XMFile.cpp
     XModule.cpp
@@ -198,6 +199,24 @@ elseif(WIN32)
         message("RtAudio support disabled (RtAudio unavailable)")
     endif()
     target_link_libraries(milkyplay PRIVATE winmm dsound)
+elseif(HAIKU)
+    target_sources(milkyplay
+        PRIVATE
+            # Sources
+            drivers/haiku/AudioDriver_Haiku.cpp
+
+            # Headers
+            drivers/haiku/AudioDriver_Haiku.h
+    )
+    target_include_directories(milkyplay
+        PRIVATE
+            drivers/haiku
+    )
+    target_link_libraries(milkyplay
+        PRIVATE
+            media
+    )
+    message(STATUS "Enabled Haiku Audio support")
 else()
     target_compile_definitions(milkyplay PRIVATE -DDRIVER_UNIX)
 

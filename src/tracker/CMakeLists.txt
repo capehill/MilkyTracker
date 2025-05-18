@@ -19,6 +19,48 @@
 #  along with MilkyTracker.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+# Create a library for shared functionality
+add_library(commandlib STATIC
+    # Core services
+    ModuleServices.cpp
+    SongLengthEstimator.cpp
+    TrackerSettingsDatabase.cpp
+    
+    # WAV functionality
+    wav/WAVExporter.cpp
+    wav/WAVExportArgs.cpp
+    wav/WAVUtils.cpp
+    
+    # CLI functionality
+    ${PROJECT_SOURCE_DIR}/src/cli/CLIParser.cpp
+)
+
+target_include_directories(commandlib
+    PUBLIC
+        # PPUI is needed for BasicTypes.h and other fundamentals
+        ${PROJECT_SOURCE_DIR}/src/ppui
+        ${PROJECT_SOURCE_DIR}/src/ppui/osinterface
+        ${PROJECT_SOURCE_DIR}/src/tracker
+        ${PROJECT_SOURCE_DIR}/src/cli
+        ${CMAKE_CURRENT_SOURCE_DIR}/wav
+)
+
+if(WIN32)
+    target_include_directories(commandlib PUBLIC
+        ${PROJECT_SOURCE_DIR}/src/ppui/osinterface/win32
+    )
+else()
+    target_include_directories(commandlib PUBLIC
+        ${PROJECT_SOURCE_DIR}/src/ppui/osinterface/posix
+    )
+endif()
+
+target_link_libraries(commandlib
+    PUBLIC
+        milkyplay
+        ppui
+)
+
 add_executable(tracker
     # Sources
     AnimatedFXControl.cpp
@@ -50,7 +92,6 @@ add_executable(tracker
     LogoBig.cpp
     LogoSmall.cpp
     ModuleEditor.cpp
-    ModuleServices.cpp
     PatternEditor.cpp
     PatternEditorClipBoard.cpp
     PatternEditorControl.cpp
@@ -59,6 +100,7 @@ add_executable(tracker
     PatternEditorControlTransposeHandler.cpp
     PatternEditorTools.cpp
     PatternTools.cpp
+	Addon.cpp
     PeakLevelControl.cpp
     Piano.cpp
     PianoControl.cpp
@@ -68,6 +110,7 @@ add_executable(tracker
     RecPosProvider.cpp
     RecorderLogic.cpp
     ResamplerHelper.cpp
+    VolumeRampHelper.cpp
     SampleEditor.cpp
     SampleEditorControl.cpp
     SampleEditorControlToolHandler.cpp
@@ -87,12 +130,11 @@ add_executable(tracker
     SectionSwitcher.cpp
     SectionTranspose.cpp
     SectionUpperLeft.cpp
-    SongLengthEstimator.cpp
     SystemMessage.cpp
     fx/Filter.cpp
     Synth.cpp
     Synths.cpp
-	SynthFM.cpp
+    SynthFM.cpp
     TabHeaderControl.cpp
     TabManager.cpp
     TabTitleProvider.cpp
@@ -151,6 +193,7 @@ add_executable(tracker
     PatternEditorControl.h
     PatternEditorTools.h
     PatternTools.h
+	Addon.h
     PeakLevelControl.h
     Piano.h
     PianoControl.h
@@ -161,6 +204,7 @@ add_executable(tracker
     RecPosProvider.h
     RecorderLogic.h
     ResamplerHelper.h
+	VolumeRampHelper.h
     fx/Filter.h
     Synth.h
 	  SynthFM.h
@@ -217,9 +261,8 @@ target_include_directories(tracker
 
 target_link_libraries(tracker
     fx
-    milkyplay
+    commandlib
     osinterface
-    ppui
 )
 
 if(CMAKE_VERSION GREATER_EQUAL 3.12)
@@ -291,6 +334,29 @@ elseif(WIN32)
         win32/ThreadTimer.h
         win32/Win32_resource.h
     )
+elseif(HAIKU)
+    target_sources(tracker PRIVATE
+        haiku/Haiku_main.cpp
+        haiku/Tools.cpp
+        haiku/MilkyApplication.cpp
+    )
+
+    target_include_directories(tracker
+        PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/midi/haiku
+    )
+    target_compile_options(tracker PRIVATE -iquote ${PROJECT_SOURCE_DIR}/src/ppui)
+
+
+    add_executable(settings
+        haiku/MilkySettings/main.cpp
+        haiku/MilkySettings/InterfaceSettingsView.cpp
+        haiku/MilkySettings/MidiSettingsView.cpp
+        haiku/MilkySettings/MilkySettingsApplication.cpp
+        haiku/MilkySettings/SettingsWindow.cpp
+    )
+
+    set_target_properties(settings PROPERTIES OUTPUT_NAME MilkySettings)
 else()
     target_sources(tracker PRIVATE
         # Sources
@@ -358,6 +424,10 @@ elseif(WIN32)
     set_target_properties(tracker PROPERTIES WIN32_EXECUTABLE TRUE)
 
     target_link_libraries(tracker midi)
+elseif(HAIKU)
+    target_link_libraries(tracker midi be libtracker.so)
+
+    target_link_libraries(settings midi2 be)
 else()
     if(ALSA_FOUND AND RTMIDI_FOUND)
         target_compile_definitions(tracker PRIVATE -DHAVE_LIBRTMIDI)

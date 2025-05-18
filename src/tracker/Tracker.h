@@ -28,6 +28,7 @@
 #include "EditModes.h"
 #include "FileTypes.h"
 #include "XModule.h"
+#include "ASCIISTEP16.h"
 
 #define INPUTCONTAINERHEIGHT_DEFAULT	(25+SCROLLBUTTONSIZE+4)
 #define INPUTCONTAINERHEIGHT_EXTENDED	(25+SCROLLBUTTONSIZE+4+13)
@@ -43,7 +44,6 @@ class EnvelopeEditor;
 class PlayerController;
 class PlayerMaster;
 class TabManager;
-class PatternEditorControl;
 class PPListBox;
 class PPStaticText;
 class EnvelopeEditorControl;
@@ -56,6 +56,7 @@ class PPMessageBoxContainer;
 class TrackerSettingsDatabase;
 class PPDictionaryKey;
 class PPFont;
+class PatternEditorControl;
 
 // OS Interfaces
 class PPSavePanel;
@@ -98,7 +99,7 @@ private:
 		PanelTop_Sample,
 		PanelTop_Instrument
 	};
-	PanelRotate panelrotate = PanelRotate::PanelTop;
+	PanelRotate panelrotate = PanelTop;
 
 	// I've replaced some constants
 #ifndef __LOWRES__
@@ -280,6 +281,10 @@ private:
 	void updateAfterLoad(bool loadResult, bool wasPlaying, bool wasPlayingPattern);
 	void updateAfterTabSwitch();
 
+#ifndef __LOWRES__
+	void updateRoundRobin(bool buttonPress);
+#endif
+
 	// - show hide GUI sections ------------------------------------------------
 	// Show/hide main section (song settings + main menu)
 	void showSongSettings(bool show);
@@ -310,11 +315,11 @@ private:
 	void doFollowSong();
 	
 	PatternEditorControl* getPatternEditorControl() { return patternEditorControl; }
-	void updatePatternEditorControl(bool repaint = true, bool fast = false);
 	PatternEditor* getPatternEditor();
 	SampleEditor* getSampleEditor();
 	EnvelopeEditor* getEnvelopeEditor();
 
+	void updatePatternEditorControl(bool repaint = true, bool fast = false);
 	pp_int32 getOrderListBoxIndex();
 	void setOrderListIndex(pp_int32 index);
 	bool isEditingCurrentOrderlistPattern();
@@ -350,6 +355,7 @@ private:
 	void fillInstrumentListBox(PPListBox* listBox, ModuleEditor* moduleEditor = NULL);
 	void fillSampleListBox(PPListBox* listBox, pp_int32 insIndex, ModuleEditor* moduleEditor = NULL);
 	void fillModuleListBox(PPListBox* listBox);
+	void doASCIISTEP16( pp_uint8 character, bool chselect );
 	
 	void setChanged();
 
@@ -475,7 +481,9 @@ public:
 	void sendNoteDown(pp_int32 note, pp_int32 volume = -1);
 	void sendNoteUp(pp_int32 note);
 
-  ModuleEditor* getModuleEditor(){ return moduleEditor; }
+	ModuleEditor* getModuleEditor(){ return moduleEditor; }
+	PPListBox* getListBoxInstruments() { return listBoxInstruments; }
+	PPListBox* getListBoxSamples() { return listBoxSamples; }
 
 private:
 	void switchEditMode(EditModes mode);
@@ -557,6 +565,7 @@ private:
 	// Some handy shortcuts
 	void eventKeyDownBinding_ToggleFT2Edit();
 	void eventKeyDownBinding_ToggleFollowSong();
+	void eventKeyDownBinding_ToggleSharpFlat();
 	void eventKeyDownBinding_ToggleProspectiveMode();
 	void eventKeyDownBinding_ToggleCursorWrapAround();
 	void eventKeyDownBinding_ToggleLiveSwitch();
@@ -597,6 +606,7 @@ private:
     void eventKeyDownBinding_IncCurOrderPattern();
 
 	void eventKeyDownBinding_InvokePatternCapture();
+	void eventKeyDownBinding_InvokePatternCaptureOverdub();
 	void eventKeyDownBinding_InvokeHelp();
 
   // brujo sauce
@@ -637,6 +647,8 @@ private:
 	friend class Zapper;
 	friend class SectionSwitcher;
 	friend class SampleEditorControl;
+	friend class Synth;
+	friend class Addon;
 };
 
 #endif

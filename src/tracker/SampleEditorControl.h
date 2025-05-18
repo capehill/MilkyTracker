@@ -67,12 +67,12 @@ private:
 
 	Tracker* tracker;
 	PPContextMenu* editMenuControl;
+	PPContextMenu* subMenuAddon;
 	PPContextMenu* subMenuFX;
 	PPContextMenu* subMenuAdvanced;
 	PPContextMenu* subMenuXPaste;
 	PPContextMenu* subMenuGenerators;
 	PPContextMenu* subMenuPT;
-
 
 	// extent
 	pp_int32 selectionStartNew, selectionEndNew;
@@ -293,11 +293,14 @@ private:
 		MenuCommandIDMTBoost,
 		MenuCommandIDVocode,
 		MenuCommandIDReverb,
+		MenuCommandIDSoothen,
+		MenuCommandIDConvolution,
 		MenuCommandIDVolumeBoost,
 		MenuCommandIDVolumeFade,
 		MenuCommandIDVolumeFadeIn,
 		MenuCommandIDVolumeFadeOut,
-		MenuCommandIDVolumeFold,
+		MenuCommandIDFoldSample,
+		MenuCommandIDFoldSampleXfade,
 		MenuCommandIDReverse,
 		MenuCommandIDPTBoost,
 		MenuCommandIDSaturate,
@@ -316,6 +319,7 @@ private:
 		MenuCommandIDEQ10Band,
 		MenuCommandIDSelectiveEQ10Band,
 		MenuCommandIDCapturePattern,
+		MenuCommandIDCapturePatternOverdub,
 		MenuCommandIDGenerateSilence,
 		MenuCommandIDGenerateNoise,
 		MenuCommandIDGenerateSine,
@@ -325,7 +329,8 @@ private:
 		MenuCommandIDGenerateHalfSine,
 		MenuCommandIDGenerateAbsoluteSine,
 		MenuCommandIDGenerateQuarterSine,
-		MenuCommandIDSynth
+		MenuCommandIDSynth,
+		MenuCommandIDSoundfont
 	};
 	
 	void executeMenuCommand(pp_int32 commandId);
@@ -335,6 +340,7 @@ private:
 public:
 	void invokeSetSampleVolume() { executeMenuCommand(MenuCommandIDVolumeBoost); }
 	void invokeSynth() { executeMenuCommand(MenuCommandIDSynth); }
+	void invokeSoundfont() { executeMenuCommand(MenuCommandIDSoundfont); }
 	
 	bool contextMenuVisible();
 	void invokeContextMenu(const PPPoint& p, bool translatePoint = true);
@@ -381,7 +387,13 @@ private:
 			SampleToolTypeGenerateAbsoluteSine,
 			SampleToolTypeGenerateQuarterSine,
 			SampleToolTypeReverb,
-			SampleToolTypeSynth
+			SampleToolTypeSoothen,
+			SampleToolTypeConvolution,
+			SampleToolTypeFoldSample,
+			SampleToolTypeFoldSampleXfade,
+			SampleToolTypeSynth,
+			SampleToolTypeAddon,
+			SampleToolTypeSoundfont
 		};
 	
 	private:

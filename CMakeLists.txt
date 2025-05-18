@@ -22,9 +22,9 @@
 cmake_minimum_required(VERSION 3.10)
 project(MilkyTracker)
 
-# Set C++ standard to C++98
-set(CMAKE_CXX_STANDARD 11)
-#set(CMAKE_CXX_EXTENSIONS OFF)
+# Set C++ standard to C++11
+set(CMAKE_CXX_STANDARD gnu++11)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Enable IDE solution folders
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -63,7 +63,9 @@ configure_file(
 )
 
 # Packaging
-if(APPLE)
+option(BUILD_DMG "Build DMG package on macOS" ON)
+
+if(APPLE AND BUILD_DMG)
     set(CPACK_GENERATOR DragNDrop)
     set(CPACK_DMG_VOLUME_NAME "${PROJECT_NAME} ${VER_FULL}")
     set(
@@ -155,6 +157,10 @@ elseif(WIN32)
     # Windows MIDI support requires no external libraries
     message(STATUS "Enabled MIDI support (WinMM)")
     add_subdirectory(src/midi)
+elseif(HAIKU)
+    # Haiku MIDI support requires no external libraries
+    message(STATUS "Enabled MIDI support (Haiku)")
+    add_subdirectory(src/midi)
 else()
     # Workaround for SDL bug #3295, which occurs in SDL2 <2.0.5
     # https://bugzilla.libsdl.org/show_bug.cgi?id=3295
@@ -198,6 +204,14 @@ if(UNIX)
         else()
             message("MIDI support disabled (ALSA unavailable)")
         endif()
+
+        # Metainfo version and timestamp configuration, mandatory for flathub
+        string( TIMESTAMP METAINFO_DATE "%Y-%m-%d" )
+        configure_file(
+            ${PROJECT_SOURCE_DIR}/resources/org.milkytracker.MilkyTracker.metainfo.xml.in
+            ${PROJECT_BINARY_DIR}/resources/org.milkytracker.MilkyTracker.metainfo.xml
+            @ONLY
+        )
     endif()
 endif()
 
@@ -213,6 +227,7 @@ add_subdirectory(src/fx)
 add_subdirectory(src/milkyplay)
 add_subdirectory(src/ppui)
 add_subdirectory(src/tracker)
+add_subdirectory(src/tools/milkycli)
 
 # Set MilkyTracker target as startup project in Visual Studio
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT tracker)

@@ -1564,8 +1564,14 @@ bool ModuleEditor::loadInstrument(const SYSCHAR* fileName, mp_sint32 index)
 {
 	ASSERT(index < module->header.insnum);
 
+	PPString file = PPString(fileName);
+
+	if( file.compareExtensions( PPString(".sf2") ) == 0 ){
+		// for now we reroute to loadSample
+		loadSample(fileName, index, 0, 1 );
+	}
+
 	XIInstrument* ins = new XIInstrument();
-	
 	bool res = ins->load(fileName) == 0; 
 	
 	if (res)
@@ -1578,7 +1584,6 @@ bool ModuleEditor::loadInstrument(const SYSCHAR* fileName, mp_sint32 index)
 	}
 	
 	delete ins;
-
 	return res;
 }
 
@@ -2484,9 +2489,9 @@ void ModuleEditor::adjustSampleOffsetCommandAfterSampleSizeChange(TXMSample *sam
 	mp_ubyte* lastIns = new mp_ubyte[module->header.channum];
 	memset(lastIns, 0, module->header.channum);
 
-	for (mp_sint32 l = 0; l < module->header.ordnum; l++)
+	for (mp_sint32 i = 0; i < MAX_PATTERNS; i++)
 	{
-		TXMPattern* pattern = &module->phead[module->header.ord[l]];
+		TXMPattern* pattern = &module->phead[i];
 
 		if (pattern->patternData == NULL)
 			continue;

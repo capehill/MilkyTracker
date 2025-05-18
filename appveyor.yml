@@ -19,6 +19,7 @@ install:
       Update-AppveyorBuild -Version "$env:GIT_TAG-$env:APPVEYOR_BUILD_NUMBER"
 
 before_build:
+  - sh: wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
   - sh: sudo apt-get update
   - sh: sudo apt-get install libjack-dev liblhasa-dev librtmidi-dev libsdl2-dev libzzip-dev -y
   - sh: if [ $PLATFORM == "Win32" ]; then exit 0; fi 

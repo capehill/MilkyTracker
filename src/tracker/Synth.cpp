@@ -27,10 +27,16 @@
 #include "DialogSliders.h"
 #include "TrackerConfig.h"
 #include "FilterParameters.h"
+#include "EnvelopeEditor.h"
+#include "ModuleEditor.h"
+#include "Tracker.h"
+#include "ListBox.h"
+#include "SectionInstruments.h"
 
 Synth::Synth(int samplerate){
   this->samplerate = samplerate;
   this->additive   = false;
+  this->preset_index = 0;
   init();
   // assign default synth 
   synth = &synths[0];
@@ -61,26 +67,19 @@ bool Synth::ASCIISynthImport( PPString preset ) {
   }else return false;
 }
 
-void Synth::reset(){
-  for( int i = 0; i < SYN_PARAMS_MAX; i++){ 
-    synth->param[i].value = 0.0f;
-    synth->param[i].name = PPString("");
-  }
+void Synth::attach( SampleEditor *s, PPScreen *screen, DialogResponder *dr, Tracker *t ){
+  assert( screen != NULL && dr != NULL && t != NULL);
+  this->screen = screen;
+  this->dr = dr;
+  this->tracker = t;
+  this->sampleEditor = s;
 }
 
-DialogSliders * Synth::dialog( SampleEditor *s, PPScreen *screen, DialogResponder *dr ){
-  if( s != NULL && screen != NULL && dr != NULL ){
-    this->sampleEditor = s;
-    this->screen = screen;
-    this->dr = dr;
-  }else{
-    sliders->show(false);
-  }
+DialogSliders * Synth::dialog(){
   PPString title = PPString("milkysynth");
-  this->additive = s != NULL ? s->hasValidSelection() : false;
-  if( this->additive ) title.append(" [additive]");
+  this->additive = sampleEditor != NULL ? sampleEditor->hasValidSelection() : false;
+  if( this->additive && !synth->facade ) title.append(" [additive]");
   sliders = new DialogSliders( this->screen, this->dr, PP_DEFAULT_ID, title, synth->nparams, this->sampleEditor, &SampleEditor::tool_synth );
-  sliders->show();
   for( int i = 0; i < synth->nparams && i < SYN_PARAMS_MAX; i++){
 	PPString label = PPString(synth->param[i].name);
     PPFont *font   = NULL;
@@ -92,33 +91,72 @@ DialogSliders * Synth::dialog( SampleEditor *s, PPScreen *screen, DialogResponde
 	}
     sliders->initSlider(i, (int)synth->param[i].min, (int)synth->param[i].max, synth->param[i].value, label, color, font );
   }
+
+  sliders->show();
+  sliders->process();
+  update();
   return sliders;
+}
+
+void Synth::update(){
+	// enable envelope as sane startingpoint
+	tracker->getModuleEditor()->reloadEnvelope(
+			tracker->getListBoxInstruments()->getSelectedIndex(),
+			tracker->getListBoxSamples()->getSelectedIndex(), 
+			0
+			);		
+	tracker->sectionInstruments->resetPianoAssignment();
+	if( !tracker->getModuleEditor()->getEnvelopeEditor()->isEmptyEnvelope() ){
+		tracker->getModuleEditor()->getEnvelopeEditor()->enableEnvelope(true);
+	}
 }
 
 void Synth::setParam( int i, float v ){
   synth->param[i].value = v;
 } 
 
-void Synth::random(){
-	pp_uint32 pr = rand() % SYNTH_PRESETS;
-	ASCIISynthImport( preset[pr] );
+void Synth::next(){
+	preset_index++;
+	if( preset_index >= SYNTH_PRESETS ) preset_index = 0;
+	ASCIISynthImport( preset[ preset_index ] );
     FilterParameters par(synth->nparams);
     pp_int32 i;
     for( i = 0; i < synth->nparams; i++ ){
       par.setParameter(i, FilterParameters::Parameter( synth->param[i].value ) );
     }
-	if( !sampleEditor->isEmptySample() ){
-		sampleEditor->clearSample();
-	}
 	sampleEditor->tool_synth(&par);
+	sampleEditor->resetSelection();
+    update();
+	if( sliders != NULL ) sliders->show(false);
+}
+
+void Synth::prev(){
+	preset_index--;
+	if( preset_index < 0 ) preset_index = SYNTH_PRESETS-1;
+	ASCIISynthImport( preset[ preset_index ] );
+    FilterParameters par(synth->nparams);
+    pp_int32 i;
+    for( i = 0; i < synth->nparams; i++ ){
+      par.setParameter(i, FilterParameters::Parameter( synth->param[i].value ) );
+    }
+	sampleEditor->tool_synth(&par);
+	sampleEditor->resetSelection();
+    update();
+	if( sliders != NULL ) sliders->show(false);
 }
 
 TXMSample * Synth::prepareSample( pp_uint32 duration){
-  TXMSample *sample;
-  FilterParameters par(2);
-  par.setParameter(0, FilterParameters::Parameter( (pp_int32)duration ) );
-  par.setParameter(1, FilterParameters::Parameter( 16 ) );
-  sampleEditor->tool_newSample(&par);
-  sample = sampleEditor->getSample();
-  return sample;
+	TXMSample *sample;
+	FilterParameters par(2);
+	par.setParameter(0, FilterParameters::Parameter( (pp_int32)duration ) );
+	par.setParameter(1, FilterParameters::Parameter( 16 ) );
+	sampleEditor->tool_newSample(&par);
+	sample = sampleEditor->getSample();
+
+	return sample;
+}
+
+void Synth::selectSynth( int ID ){
+    synth = &synths[ID];
+	setParam(0, float(ID) );
 }

@@ -39,13 +39,16 @@
 #include "FilterParameters.h"
 #include "SectionSamples.h"
 #include "PatternEditor.h"
+#include "Addon.h"
+#include "SampleLoaderSF2.h"
 
 bool SampleEditorControl::invokeToolParameterDialog(SampleEditorControl::ToolHandlerResponder::SampleToolTypes type)
 {
   if (dialog)
   {
+	tracker->screen->setModalControl(NULL);
     delete dialog;
-    dialog = NULL;
+	dialog = NULL;
   }
 
   toolHandlerResponder->setSampleToolType(type);
@@ -67,6 +70,7 @@ bool SampleEditorControl::invokeToolParameterDialog(SampleEditorControl::ToolHan
       DialogSliders *sliders = static_cast<DialogSliders*>(dialog);
       float value = lastValues.boostSampleVolume != SampleEditorControlLastValues::invalidFloatValue() ? lastValues.boostSampleVolume : 100.0f;
       sliders->initSlider(0,0.0f, 300.0f, value,"Volume");
+	  sliders->process();
       break;
     }
 
@@ -77,6 +81,7 @@ bool SampleEditorControl::invokeToolParameterDialog(SampleEditorControl::ToolHan
       sliders->initSlider(0,0.0f, 300.0f, value,"Start");
       value = lastValues.fadeSampleVolumeStart != SampleEditorControlLastValues::invalidFloatValue() ? lastValues.fadeSampleVolumeStart : 100.0f;
       sliders->initSlider(1,0.0f, 300.0f, value,"End");
+	  sliders->process();
       break;
     }
 
@@ -102,7 +107,7 @@ bool SampleEditorControl::invokeToolParameterDialog(SampleEditorControl::ToolHan
           static_cast<DialogResample*>(dialog)->setInterpolationType(lastValues.resampleInterpolationType);
 
         static_cast<DialogResample*>(dialog)->setAdjustFtAndRelnote(lastValues.adjustFtAndRelnote);
-
+        static_cast<DialogResample*>(dialog)->setAdjustSampleOffsetCommand(lastValues.adjustSampleOffsetCommand);
         static_cast<DialogResample*>(dialog)->setRelNote(sampleEditor->getRelNoteNum());
         static_cast<DialogResample*>(dialog)->setFineTune(sampleEditor->getFinetune());
         static_cast<DialogResample*>(dialog)->setSize(sampleEditor->getSampleLen());
@@ -160,6 +165,38 @@ bool SampleEditorControl::invokeToolParameterDialog(SampleEditorControl::ToolHan
       break;
     }
 
+    case ToolHandlerResponder::SampleToolTypeSoothen:{
+      // convolute with itself (= soothen = inversed selfresonance)													
+	  sampleEditor->selectAll();														 
+	  sampleEditor->copy();														 
+	  sampleEditor->setLoopType(1);														 
+      dialog = new DialogSliders(parentScreen, toolHandlerResponder, PP_DEFAULT_ID, "Soothen", 3, sampleEditor, &SampleEditor::tool_convolution );
+      DialogSliders *sliders = static_cast<DialogSliders*>(dialog);
+      sliders->initSlider(0,0,100,100,"Dry..Wet");
+      sliders->initSlider(1,1,100,1,"Smear");
+      sliders->initSlider(2,0,5,5,"Soothe");
+	  sliders->process();
+	  break;
+	}
+
+    case ToolHandlerResponder::SampleToolTypeConvolution:{
+      if ( sampleEditor->clipBoardIsEmpty() ){
+        tracker->showMessageBoxSized(MESSAGEBOX_UNIVERSAL, "copy a different waveform first", Tracker::MessageBox_OK);
+        return false;
+      }
+      dialog = new DialogSliders(parentScreen, toolHandlerResponder, PP_DEFAULT_ID, "Convolution with clipboard", 7, sampleEditor, &SampleEditor::tool_convolution );
+      DialogSliders *sliders = static_cast<DialogSliders*>(dialog);
+      sliders->initSlider(0,0,100,100,"Dry..Wet");
+      sliders->initSlider(1,1,100,1,"IR length");
+      sliders->initSlider(2,0,5,5,"Convolve");
+      sliders->initSlider(3,-100,100,0,"Contrast");
+      sliders->initSlider(4,0,630,0,"Rotation");
+      sliders->initSlider(5,0,100,0,"Random phase");
+      sliders->initSlider(6,1,100,100,"Octave");
+	  sliders->process();
+	  break;
+	}
+
     case ToolHandlerResponder::SampleToolTypeReverb:{
       dialog = new DialogSliders(parentScreen, toolHandlerResponder, PP_DEFAULT_ID, "Reverb", 2, sampleEditor, &SampleEditor::tool_reverb );
       DialogSliders *sliders = static_cast<DialogSliders*>(dialog);
@@ -168,6 +205,15 @@ bool SampleEditorControl::invokeToolParameterDialog(SampleEditorControl::ToolHan
       sliders->initSlider(0,0,100,value,"Dry..Wet");
       value = lastValues.reverbSize   != SampleEditorControlLastValues::invalidFloatValue() ? lastValues.reverbSize : 20.0f;
       sliders->initSlider(1,1,100,value,"Size");
+	  sliders->process();
+      break;
+    }
+
+    case ToolHandlerResponder::SampleToolTypeFoldSampleXfade:
+    case ToolHandlerResponder::SampleToolTypeFoldSample:{
+      FilterParameters par(1);
+      par.setParameter(0, FilterParameters::Parameter( type == ToolHandlerResponder::SampleToolTypeFoldSampleXfade ? 1.0f : 0.0f ) );
+      sampleEditor->tool_foldSample(&par);
       break;
     }
 
@@ -175,12 +221,21 @@ bool SampleEditorControl::invokeToolParameterDialog(SampleEditorControl::ToolHan
         TXMSample *sample = sampleEditor->getSample();
         dialog = new DialogSliders(parentScreen, toolHandlerResponder, PP_DEFAULT_ID, "Saturation", 5, sampleEditor, &SampleEditor::tool_saturate );
         DialogSliders *sliders = static_cast<DialogSliders*>(dialog);
-        float value = lastValues.saturate   != SampleEditorControlLastValues::invalidFloatValue() ? lastValues.saturate : 10.0f;
+        float value = lastValues.saturator[0]   != SampleEditorControlLastValues::invalidFloatValue() ? lastValues.saturator[0] : 18.0f;
         sliders->initSlider(0,1,100,value,"Harmonics");
-        sliders->initSlider(1,0,100,0,"Bandpass");
-        sliders->initSlider(2,0,150,50,"Compand");
-        sliders->initSlider(3,1,100,100,"Dry \x1d Wet");
-        sliders->initSlider(4,0.0f, 1000.0f, 100.0f,"Volume");
+
+        value = lastValues.saturator[1]   != SampleEditorControlLastValues::invalidFloatValue() ? lastValues.saturator[1] : 0.0f;
+        sliders->initSlider(1,0,100,value,"Bandpass");
+
+        value = lastValues.saturator[2]   != SampleEditorControlLastValues::invalidFloatValue() ? lastValues.saturator[2] : 50.0f;
+        sliders->initSlider(2,0,150,value,"Compand");
+
+        value = lastValues.saturator[3]   != SampleEditorControlLastValues::invalidFloatValue() ? lastValues.saturator[3] : 50.0f;
+        sliders->initSlider(3,1,100,value,"Dry \x1d Wet");
+
+        value = lastValues.saturator[4]   != SampleEditorControlLastValues::invalidFloatValue() ? lastValues.saturator[4] : 150.0f;
+        sliders->initSlider(4,0.0f, 1000.0f, value,"Volume");
+	    sliders->process();
         break;
     }
 
@@ -188,10 +243,16 @@ bool SampleEditorControl::invokeToolParameterDialog(SampleEditorControl::ToolHan
         TXMSample *sample = sampleEditor->getSample();
         dialog = new DialogSliders(parentScreen, toolHandlerResponder, PP_DEFAULT_ID, "Milky Exciter", 4, sampleEditor, &SampleEditor::tool_MTboostSample );
         DialogSliders *sliders = static_cast<DialogSliders*>(dialog);
-        sliders->initSlider(0,2000,28000,20000,"Freq");
-        sliders->initSlider(1,1,100,10,"Smear");
-        sliders->initSlider(2,0,20,0,"Phase");
-        sliders->initSlider(3,1,100,20,"Wet");
+
+        float value = lastValues.milkyexcite[0]   != SampleEditorControlLastValues::invalidFloatValue() ? lastValues.milkyexcite[0] : 20000.0f;
+        sliders->initSlider(0,2000,28000,value,"Freq");
+        value = lastValues.milkyexcite[1]   != SampleEditorControlLastValues::invalidFloatValue() ? lastValues.milkyexcite[1] : 10.0f;
+        sliders->initSlider(1,1,100,value,"Smear");
+        value = lastValues.milkyexcite[2]   != SampleEditorControlLastValues::invalidFloatValue() ? lastValues.milkyexcite[2] : 0.0f;
+        sliders->initSlider(2,0,20,value,"Phase");
+        value = lastValues.milkyexcite[3]   != SampleEditorControlLastValues::invalidFloatValue() ? lastValues.milkyexcite[3] : 20.0f;
+        sliders->initSlider(3,1,100,value,"Wet");
+	    sliders->process();
         break;
     }
 
@@ -209,6 +270,7 @@ bool SampleEditorControl::invokeToolParameterDialog(SampleEditorControl::ToolHan
         sliders->initSlider(3,1,100,50,"high band");
         sliders->initSlider(4,0,100,0,"high q");
         sliders->initSlider(5,0,100,50,"volume");
+	    sliders->process();
         break;
     }
 
@@ -229,6 +291,7 @@ bool SampleEditorControl::invokeToolParameterDialog(SampleEditorControl::ToolHan
       value = lastValues.filterSweep   != SampleEditorControlLastValues::invalidFloatValue() ? lastValues.filterSweep : 0.0f;
       sliders->initSlider(3,0,3,value,"Sweep");
       sliders->initSlider(4,0.0f, 1000.0f, 100.0f,"Volume");
+	  sliders->process();
       break;
     }
 
@@ -237,6 +300,7 @@ bool SampleEditorControl::invokeToolParameterDialog(SampleEditorControl::ToolHan
       DialogSliders *sliders = static_cast<DialogSliders*>(dialog);
       sliders->initSlider(0,1,10000,3900,"Grainsize");
       sliders->initSlider(1,0,20,3,"Stretch");
+	  sliders->process();
       break;
     }
 
@@ -247,7 +311,7 @@ bool SampleEditorControl::invokeToolParameterDialog(SampleEditorControl::ToolHan
         PPString str = "Flange";
         str.append("\x1d");
         str.append("Delay");
-        sliders->initSlider(0,1,10000,3900,str);
+        sliders->initSlider(0,1,100000,15000,str);
         str = "Flange";
         str.append("\x1d");
         str.append("Echos");
@@ -256,6 +320,7 @@ bool SampleEditorControl::invokeToolParameterDialog(SampleEditorControl::ToolHan
         sliders->initSlider(3,0,sampleRate/2,0,"Bandpass");
         sliders->initSlider(4,1,100,0,"Saturate");
         sliders->initSlider(5,0,100,50,"Dry / Wet");
+	    sliders->process();
       break;
     }
 
@@ -281,9 +346,38 @@ bool SampleEditorControl::invokeToolParameterDialog(SampleEditorControl::ToolHan
     {
       // triggered when user presses 'synth'-button
       getSampleEditor()->getSynth()->ASCIISynthImport( PPString( getSampleEditor()->getSample()->name) );
-      dialog = getSampleEditor()->getSynth()->dialog( getSampleEditor(), parentScreen, toolHandlerResponder );
       PatternEditor *pe = this->tracker->getPatternEditor();
       pe->getCursor().inner = 0; // force note-column to hear notes playing on keyboard
+      getSampleEditor()->getSynth()->attach( getSampleEditor(), parentScreen, toolHandlerResponder, tracker );
+      dialog = getSampleEditor()->getSynth()->dialog();
+      static_cast<DialogSliders*>(dialog)->process();
+	  tracker->screen->setFocus(this); // dont clutter live notes to pattern 
+      break;
+    }
+
+	case ToolHandlerResponder::SampleToolTypeSoundfont:
+	{
+		dialog = new DialogSliders(parentScreen, toolHandlerResponder, PP_DEFAULT_ID, "select soundfont sample", 1, sampleEditor, &SampleEditor::tool_soundfont );
+		DialogSliders *sliders = static_cast<DialogSliders*>(dialog);
+		sliders->initSlider(0, float(0), float( SampleLoaderSF2::lastSF2FileSamples-1 ), float(0), "sample" );
+		break;
+	}
+
+    case ToolHandlerResponder::SampleToolTypeAddon:
+    {
+		Param *params = Addon::params;
+		int nparams = Addon::param_count;
+		if( nparams > 0 ){ 
+			dialog = new DialogSliders(parentScreen, toolHandlerResponder, PP_DEFAULT_ID, Addon::selectedName, nparams, sampleEditor, &SampleEditor::tool_addon );
+			DialogSliders *sliders = static_cast<DialogSliders*>(dialog);
+			for (int i = 0; i < nparams; i++) {
+			  sliders->initSlider(i, float(params[i].min), float(params[i].max), float(params[i].value), params[i].label );
+			}
+	        sliders->process();
+		}else{
+		    FilterParameters par(0);
+			sampleEditor->tool_addon(&par);
+		}
       break;
     }
 
@@ -291,7 +385,7 @@ bool SampleEditorControl::invokeToolParameterDialog(SampleEditorControl::ToolHan
       break;
   }
 
-  dialog->show();
+  if( dialog != NULL ) dialog->show();
 
   return true;
 }
@@ -320,6 +414,19 @@ bool SampleEditorControl::invokeTool(ToolHandlerResponder::SampleToolTypes type)
       break;
     }
 
+    case ToolHandlerResponder::SampleToolTypeSoothen:{
+      // we don't do anything here since dialogsliders processes inplace already
+      break;
+	}
+
+    case ToolHandlerResponder::SampleToolTypeConvolution:{
+      DialogSliders *sliders = static_cast<DialogSliders*>(dialog);
+      lastValues.reverbDryWet  = sliders->getSlider(0);
+      lastValues.reverbSize    = sliders->getSlider(1);
+      // we don't do anything here since dialogsliders processes inplace already
+      break;
+	}
+
     case ToolHandlerResponder::SampleToolTypeReverb:
     {
       DialogSliders *sliders = static_cast<DialogSliders*>(dialog);
@@ -337,6 +444,8 @@ bool SampleEditorControl::invokeTool(ToolHandlerResponder::SampleToolTypes type)
 
     case ToolHandlerResponder::SampleToolTypeMTBoost:
     {
+      DialogSliders *sliders = static_cast<DialogSliders*>(dialog);
+	  for( pp_uint8 i = 0; i < 4; i++ ) lastValues.milkyexcite[i]   = sliders->getSlider(i);
       // we don't do anything here since dialogsliders processes inplace already
       break;
     }
@@ -344,7 +453,7 @@ bool SampleEditorControl::invokeTool(ToolHandlerResponder::SampleToolTypes type)
     case ToolHandlerResponder::SampleToolTypeSaturate:
     {
       DialogSliders *sliders = static_cast<DialogSliders*>(dialog);
-      lastValues.saturate     = sliders->getSlider(0);
+	  for( pp_uint8 i = 0; i < 5; i++ ) lastValues.saturator[i]     = sliders->getSlider(i);
       // we don't do anything here since dialogsliders processes inplace already
       break;
     }
@@ -375,8 +484,10 @@ bool SampleEditorControl::invokeTool(ToolHandlerResponder::SampleToolTypes type)
 
     case ToolHandlerResponder::SampleToolTypeFade:
     {
-      lastValues.fadeSampleVolumeStart = static_cast<DialogWithValues*>(dialog)->getValueOne();
-      lastValues.fadeSampleVolumeEnd = static_cast<DialogWithValues*>(dialog)->getValueTwo();
+      DialogSliders *sliders = static_cast<DialogSliders*>(dialog);
+      lastValues.fadeSampleVolumeStart = sliders->getSlider(0);
+      lastValues.fadeSampleVolumeEnd   = sliders->getSlider(1);
+	  printf("%f %f\n",lastValues.fadeSampleVolumeStart, lastValues.fadeSampleVolumeEnd);
       // we don't do anything here since dialogsliders processes inplace already
       break;
     }

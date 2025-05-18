@@ -66,6 +66,7 @@ const char* FileExtProvider::instrumentExtensions[] =
 {
 	"xi","FT2 Instruments",
 	"pat","GUS Patches",
+	"sf2","SoundFont 2.0",
 	NULL, NULL
 };
 
@@ -76,6 +77,7 @@ const char* FileExtProvider::sampleExtensions[] =
 	"8svx","IFF (un)compressed",
 	"aif","Apple AIFF uncompressed",
 	"aiff","Apple AIFF uncompressed",
+	"sf2","SoundFont 2.0",
 	NULL, NULL
 };
 

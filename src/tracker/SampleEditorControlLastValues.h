@@ -31,6 +31,8 @@ struct SampleEditorControlLastValues
 {
 	pp_int32 newSampleSize;
 	pp_int32 changeSignIgnoreBits;
+	float saturator[5];
+	float milkyexcite[4];
 	float boostSampleVolume;
 	float fadeSampleVolumeStart;
 	float fadeSampleVolumeEnd;
@@ -51,7 +53,7 @@ struct SampleEditorControlLastValues
 
 	float reverbSize; 
 	float reverbDryWet;
-	float saturate;
+	pp_int32 IRSample; 
 	float filterCutoffL;
 	float filterCutoffH;
 	float filterRes;
@@ -84,11 +86,13 @@ struct SampleEditorControlLastValues
 		adjustSampleOffsetCommand = false;
 		reverbSize = invalidFloatValue();
 		reverbDryWet = invalidFloatValue();
-		saturate = invalidFloatValue();
+		IRSample = invalidIntValue();
 		filterCutoffL = invalidFloatValue();
 		filterCutoffH = invalidFloatValue();
 		filterRes = invalidFloatValue();
 		filterSweep = invalidFloatValue();
+		for( pp_uint8 i = 0; i < 5; i++) saturator[i] = invalidFloatValue();
+		for( pp_uint8 i = 0; i < 4; i++) milkyexcite[i] = invalidFloatValue();
 	}
 		
 	PPDictionary convertToDictionary()
@@ -115,14 +119,24 @@ struct SampleEditorControlLastValues
 		
 		result.store("adjustFtAndRelnote", adjustFtAndRelnote);
 
-		result.store("adjustSampleOffsetCommands", adjustSampleOffsetCommand);
-		result.store("saturate", PPDictionary::convertFloatToIntNonLossy(saturate));
+		result.store("adjustSampleOffsetCommand", adjustSampleOffsetCommand);
 		result.store("reverbSize", PPDictionary::convertFloatToIntNonLossy(reverbSize));
 		result.store("reverbDryWet", PPDictionary::convertFloatToIntNonLossy(reverbDryWet));
+		result.store("IRSample", IRSample );
 		result.store("filterCutoffL", PPDictionary::convertFloatToIntNonLossy(filterCutoffL));
 		result.store("filterCutoffH", PPDictionary::convertFloatToIntNonLossy(filterCutoffH));
 		result.store("filterRes", PPDictionary::convertFloatToIntNonLossy(filterRes));
 		result.store("filterSweep", PPDictionary::convertFloatToIntNonLossy(filterSweep));
+		
+		result.store("saturator_0", PPDictionary::convertFloatToIntNonLossy(saturator[0]));
+		result.store("saturator_1", PPDictionary::convertFloatToIntNonLossy(saturator[1]));
+		result.store("saturator_2", PPDictionary::convertFloatToIntNonLossy(saturator[2]));
+		result.store("saturator_3", PPDictionary::convertFloatToIntNonLossy(saturator[3]));
+		result.store("saturator_4", PPDictionary::convertFloatToIntNonLossy(saturator[4]));
+		result.store("milkyexcite_0", PPDictionary::convertFloatToIntNonLossy(milkyexcite[0]));
+		result.store("milkyexcite_1", PPDictionary::convertFloatToIntNonLossy(milkyexcite[1]));
+		result.store("milkyexcite_2", PPDictionary::convertFloatToIntNonLossy(milkyexcite[2]));
+		result.store("milkyexcite_3", PPDictionary::convertFloatToIntNonLossy(milkyexcite[3]));
 		return result;
 	}
 	
@@ -175,7 +189,7 @@ struct SampleEditorControlLastValues
 			{
 				adjustFtAndRelnote = key->getBoolValue();
 			}
-			else if (key->getKey().compareToNoCase("adjustSampleOffsetCommands") == 0)
+			else if (key->getKey().compareToNoCase("adjustSampleOffsetCommand") == 0)
 			{
 				adjustSampleOffsetCommand = key->getBoolValue();
 			}
@@ -187,9 +201,9 @@ struct SampleEditorControlLastValues
 			{
 				reverbDryWet = PPDictionary::convertIntToFloatNonLossy(key->getIntValue());
 			}
-			else if (key->getKey().compareToNoCase("saturate") == 0)
+			else if (key->getKey().compareToNoCase("IRSample") == 0)
 			{
-				saturate = PPDictionary::convertIntToFloatNonLossy(key->getIntValue());
+				IRSample = key->getIntValue();
 			}
 			else if (key->getKey().compareToNoCase("filterCutoffL") == 0)
 			{
@@ -206,6 +220,26 @@ struct SampleEditorControlLastValues
 			else if (key->getKey().compareToNoCase("filterSweep") == 0)
 			{
 				filterSweep = PPDictionary::convertIntToFloatNonLossy(key->getIntValue());
+			}
+			else if (key->getKey().compareToNoCase("saturator_0") == 0)
+			{
+				saturator[0] = PPDictionary::convertIntToFloatNonLossy(key->getIntValue());
+			}
+			else if (key->getKey().compareToNoCase("saturator_1") == 1)
+			{
+				saturator[1] = PPDictionary::convertIntToFloatNonLossy(key->getIntValue());
+			}
+			else if (key->getKey().compareToNoCase("saturator_2") == 2)
+			{
+				saturator[2] = PPDictionary::convertIntToFloatNonLossy(key->getIntValue());
+			}
+			else if (key->getKey().compareToNoCase("saturator_3") == 3)
+			{
+				saturator[3] = PPDictionary::convertIntToFloatNonLossy(key->getIntValue());
+			}
+			else if (key->getKey().compareToNoCase("saturator_4") == 4)
+			{
+				saturator[4] = PPDictionary::convertIntToFloatNonLossy(key->getIntValue());
 			}
 
 			key = dictionary.getNextKey();

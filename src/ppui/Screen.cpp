@@ -92,14 +92,53 @@ void PPScreen::adjustEventMouseCoordinates(PPEvent* event)
 
 void PPScreen::raiseEvent(PPEvent* event)
 {
-	if (event->isMouseEvent())
+	if (event->isMouseEvent() ){
 		adjustEventMouseCoordinates(event);
+		PPPoint* p = (PPPoint*)event->getDataPtr();
+		if( modalControl && modalControl->isVisible() && modalControl->hit(*p) ){
+			lastMouseOverControl = modalControl;
+		}else{
+			lastMouseOverControl = getFocusedControl();
+		}
+
+		// when modalDialog is open, don't do contextmenus
+		if( modalControl && modalControl->isVisible() && event->getID() == eRMouseDown ){
+			return;
+		}
+	}
+
+	// bubble from modal to parent container [or not]
+	bool bubble = lastMouseOverControl != modalControl;
+	bool keyEvent   = event->getID() == eKeyDown || event->getID() == eKeyUp;
 
 	// route events to event listener first
 	eventListener->handleEvent(reinterpret_cast<PPObject*>(this), event);
 
 	if (event->getID() == eInvalid)
 		return;
+
+
+	if (modalControl && modalControl->isVisible())
+	{
+		// listener of the modal control also gets a chance to listen to these events
+		if (modalControl->getEventListener() && 
+			modalControl->getEventListener() != eventListener)
+			modalControl->getEventListener()->handleEvent(reinterpret_cast<PPObject*>(this), event);
+	
+		// if the above listener removed the control we're out of here
+		if (!modalControl)
+			return;		
+
+	
+		// only allow keys to arrive at modal when mousecursor is in modal
+		if( bubble && event->getID() != eKeyUp ){
+		  rootContainer->dispatchEvent(event);
+		  return; // prevent keydown duplicates
+		}else{
+		  modalControl->dispatchEvent(event);
+		  return;
+		}
+	}
 
 	// route timer event
 	if (event->getID() == eTimer)
@@ -112,21 +151,6 @@ void PPScreen::raiseEvent(PPEvent* event)
 			
 			control->dispatchEvent(event);
 		}
-		return;
-	}
-
-	if (modalControl && modalControl->isVisible())
-	{
-		// listener of the modal control also gets a chance to listen to these events
-		if (modalControl->getEventListener() && 
-			modalControl->getEventListener() != eventListener)
-			modalControl->getEventListener()->handleEvent(reinterpret_cast<PPObject*>(this), event);
-	
-		// if the above listener removed the control we're out of here
-		if (!modalControl)
-			return;		
-		
-		modalControl->dispatchEvent(event);
 		return;
 	}
 
@@ -540,6 +564,7 @@ void PPScreen::setFocus(PPControl* control, bool repaint/* = true*/)
 			static_cast<PPContainer*>(chain.get(i))->setFocus(chain.get(i-1), repaint);
 		}
 	}
+	lastMouseOverControl = control;
 }
 
 PPControl* PPScreen::getFocusedControl() const
@@ -648,6 +673,7 @@ void PPScreen::setModalControl(PPControl* control, bool repaint/* = true*/)
 	}
 
 	modalControl = control; 
+	setFocus(modalControl);
 	
 	if (repaint)
 		paint(); 

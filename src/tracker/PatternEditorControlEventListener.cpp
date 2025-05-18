@@ -37,6 +37,7 @@
 #include "XModule.h"
 #include "ContextMenu.h"
 #include "Undo.h"
+#include "ControlIDs.h"
 
 #define SCROLLBARWIDTH  SCROLLBUTTONSIZE
 
@@ -258,8 +259,8 @@ pp_int32 PatternEditorControl::dispatchEvent(PPEvent* event)
 				PPPoint cp = *p;
 				
 				cp.x-=location.x + SCROLLBARWIDTH + getRowCountWidth() + 4;
-				cp.y-=location.y + SCROLLBARWIDTH + font->getCharHeight() + 4;
-				
+				cp.y-=location.y + SCROLLBARWIDTH + font->getCharHeight()*2 + 4;
+
 				if (cp.y <  -((pp_int32)font->getCharHeight() + 6))
 					break;
 
@@ -623,7 +624,7 @@ unmuteAll:
 						PPPoint cp = *p;
 						
 						cp.x-=location.x + SCROLLBARWIDTH + getRowCountWidth() + 4;
-						cp.y-=location.y + SCROLLBARWIDTH + font->getCharHeight() + 4;
+						cp.y-=location.y + SCROLLBARWIDTH + font->getCharHeight()*2 + 4;
 						
 						// not in our local CS
 						if (cp.x < 0 || cp.y < 0)
@@ -658,7 +659,7 @@ markOrMoveSelection:
 			PPPoint cp2 = cp;
 
 			cp.x-=location.x + SCROLLBARWIDTH + getRowCountWidth() + 4;
-			cp.y-=location.y + SCROLLBARWIDTH + font->getCharHeight() + 4;
+			cp.y-=location.y + SCROLLBARWIDTH + font->getCharHeight()*2 + 4;
 			
 			cp2.x-=location.x;
 			cp2.y-=location.y;
@@ -921,7 +922,14 @@ markOrMoveSelection:
 
 			pp_uint8 character = *((pp_uint8*)event->getDataPtr());
 
-			handleKeyChar(character);
+			// handle keys which are not part of shortcut 
+			// [otherwise ctrl-minus will add minus-volslides in volcolumn e.g.]
+			if ( 
+				(::getKeyModifier() != (unsigned)KeyModifierCTRL)  && 
+				(::getKeyModifier() != (unsigned)KeyModifierALT)   
+			){
+				handleKeyChar(character);
+			}
 
 			if (assureUpdate)
 				parentScreen->paintControl(this);
@@ -987,13 +995,14 @@ pp_int32 PatternEditorControl::handleEvent(PPObject* sender, PPEvent* event)
 		sender == reinterpret_cast<PPObject*>(vRightScrollbar)) &&
 		event->getID() == eBarScrollDown)
 	{
-		pp_int32 scrollAmount = event->getMetaData();
+		pp_int32 scrollAmount = event->getMetaData() + 1;
 		if (properties.scrollMode != ScrollModeStayInCenter)
 		{
 			pp_int32 visibleItems = (visibleHeight) / font->getCharHeight();
 			startIndex += scrollAmount;
-			if (startIndex + visibleItems > pattern->rows)
+			if (startIndex + visibleItems >= pattern->rows)
 				startIndex = pattern->rows - visibleItems;
+      else startIndex++;
 
 			float v = (float)(pattern->rows - visibleItems);
 
@@ -1019,6 +1028,7 @@ pp_int32 PatternEditorControl::handleEvent(PPObject* sender, PPEvent* event)
 			startIndex -= scrollAmount;
 			if (startIndex < 0)
 				startIndex = 0;
+      else startIndex--;
 		
 			pp_int32 visibleItems = (visibleHeight) / font->getCharHeight();
 
@@ -1118,7 +1128,9 @@ pp_int32 PatternEditorControl::handleEvent(PPObject* sender, PPEvent* event)
 	         sender == reinterpret_cast<PPObject*>(moduleMenuControl) ||
 	         sender == reinterpret_cast<PPObject*>(patternMenuControl) ||
 	         sender == reinterpret_cast<PPObject*>(keyboardMenuControl) ||
-	         sender == reinterpret_cast<PPObject*>(channelMenuControl) )
+	         sender == reinterpret_cast<PPObject*>(channelMenuControl)  ||
+	         sender == reinterpret_cast<PPObject*>(editMenuPasteControl)  ||
+	         sender == reinterpret_cast<PPObject*>(helpMenuControl) )
 	{
 		switch (event->getID())
 		{
@@ -1211,6 +1223,7 @@ void PatternEditorControl::invokeMenu(pp_int32 channel, const PPPoint& p)
 	editMenuControl->setState(MenuCommandIDCopy, !hasValidSelection());
 	editMenuControl->setState(MenuCommandIDPaste, patternEditor->clipBoardSelectionIsEmpty());
 	editMenuControl->setState(MenuCommandIDPorousPaste, patternEditor->clipBoardSelectionIsEmpty());
+	editMenuControl->setState(MenuCommandIDPasteStepFill, !hasValidSelection());
 	editMenuControl->setState(MenuCommandIDUndo, !patternEditor->canUndo());
 	editMenuControl->setState(MenuCommandIDRedo, !patternEditor->canRedo());
 	editMenuControl->setState(MenuCommandIDSwapChannels, menuInvokeChannel == patternEditor->getCursor().channel);

@@ -210,7 +210,7 @@ public:
 SectionDiskMenu::SectionDiskMenu(Tracker& theTracker) :
 	SectionUpperLeft(theTracker, NULL, new DialogResponderDisk(*this)),
 	diskMenuVisible(false),
-	classicViewState(BrowseModules),
+	classicViewState(BrowseAll),
 	forceClassicBrowser(false),
 	moduleTypeAdjust(true),
 	sortAscending(true),
@@ -673,7 +673,7 @@ void SectionDiskMenu::init(pp_int32 px, pp_int32 py)
 	container->addControl(button);
 	y+=buttonHeight;
 	
-	radioGroup = new PPRadioGroup(DISKMENU_NORMAL_RADIOGROUP_INSTRUMENTTYPE, screen, this, PPPoint(x, y), PPSize(buttonWidth, 30));
+	radioGroup = new PPRadioGroup(DISKMENU_NORMAL_RADIOGROUP_INSTRUMENTTYPE, screen, this, PPPoint(x, y), PPSize(buttonWidth, 45));
 	radioGroupLocations[RADIOGROUPTOINDEX(DISKMENU_NORMAL_RADIOGROUP_INSTRUMENTTYPE)] = radioGroup->getLocation(); 
 	radioGroup->setColor(TrackerConfig::colorThemeMain);
 
@@ -697,7 +697,7 @@ void SectionDiskMenu::init(pp_int32 px, pp_int32 py)
 	container->addControl(button);
 	y+=buttonHeight;
 	
-	radioGroup = new PPRadioGroup(DISKMENU_NORMAL_RADIOGROUP_SAMPLETYPE, screen, this, PPPoint(x, y), PPSize(buttonWidth, 2*14));
+	radioGroup = new PPRadioGroup(DISKMENU_NORMAL_RADIOGROUP_SAMPLETYPE, screen, this, PPPoint(x, y), PPSize(buttonWidth, 4*14));
 	radioGroupLocations[RADIOGROUPTOINDEX(DISKMENU_NORMAL_RADIOGROUP_SAMPLETYPE)] = radioGroup->getLocation(); 
 	radioGroup->setColor(TrackerConfig::colorThemeMain);
 
@@ -1941,6 +1941,8 @@ void SectionDiskMenu::assureExtension()
 	updateFilenameEditFieldExtension(classicViewState);
 }
 
-
-
-
+void SectionDiskMenu::setModuleTypeAdjust(bool moduleTypeAdjust)
+{ 
+	this->moduleTypeAdjust = moduleTypeAdjust; 
+	if( classicViewVisible ) updateClassicView(true);
+}

@@ -270,6 +270,7 @@ public:
 	bool selectionContains(const PatternEditorTools::Position& pos);
 	void selectChannel(pp_int32 channel);
 	void selectAll();
+	void selectColumn();
 
 	// dealing with instrument
 	void setCurrentInstrument(pp_int32 ins) { currentInstrument = ins; }
@@ -372,6 +373,12 @@ public:
 	bool writeNote(pp_int32 note, 
 				   bool withUndo = false,
 				   PatternAdvanceInterface* advanceImpl = NULL);
+
+	bool writeStep(pp_uint32 channel,
+				   pp_uint32 stup,
+				   pp_uint32 note,
+				   pp_uint32 barRow,								
+				   bool withUndo/* = false*/);	
 				   
 	// --- write through, without undo etc. ----------------------------------
 	void writeDirectNote(pp_int32 note,

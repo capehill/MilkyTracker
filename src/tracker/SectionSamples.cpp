@@ -136,7 +136,9 @@ pp_int32 SectionSamples::handleEvent(PPObject* sender, PPEvent* event)
 	}
 	else if (event->getID() == eCommand || event->getID() == eCommandRepeat)
 	{
-		switch (reinterpret_cast<PPControl*>(sender)->getID())
+
+		pp_uint32 commandId =  reinterpret_cast<PPControl*>(sender)->getID();
+		switch (commandId)
 		{
 			// load sample
 			case BUTTON_SAMPLE_LOAD:
@@ -183,15 +185,21 @@ pp_int32 SectionSamples::handleEvent(PPObject* sender, PPEvent* event)
 			case BUTTON_SAMPLE_SYNTH:
 			{
 				getSampleEditorControl()->invokeSynth();
+				refresh();
 				break;
 			}
 
-			case BUTTON_SAMPLE_SYNTH_RAND:
+			case BUTTON_SAMPLE_SYNTH_NEXT:
+			case BUTTON_SAMPLE_SYNTH_PREV:
 			{
-				sampleEditor->getSynth()->setSampleEditor(sampleEditor);
-				sampleEditor->getSynth()->random();
-        tracker.updateSamplesListBox(false);
-        refresh();
+				sampleEditor->getSynth()->attach(sampleEditor, (PPScreen *)&(tracker.screen), (DialogResponder *)this, (Tracker *)&tracker);
+				if( commandId == BUTTON_SAMPLE_SYNTH_NEXT ) sampleEditor->getSynth()->next();
+				if( commandId == BUTTON_SAMPLE_SYNTH_PREV ) sampleEditor->getSynth()->prev();
+				tracker.updateSamplesListBox(false);
+				PatternEditor *pe = tracker.getPatternEditor();
+				pe->getCursor().inner = 0; // force note-column to hear notes playing on keyboard
+				tracker.screen->setFocus(sampleEditorControl);  // dont clutter live notes to pattern 
+				refresh();
 				break;
 			}
 
@@ -545,8 +553,8 @@ void SectionSamples::init(pp_int32 x, pp_int32 y)
 	button->setText( screen->getClassic() ? "Dn" : "\x1b" );
 	container->addControl(button);
 
-	PPPoint locStop  = screen->getClassic() ? PPPoint(x2+2, y2+2+bHeight*2) : PPPoint(x2+size, y2+2+bHeight);
-	PPSize  sizeStop = screen->getClassic() ? PPSize(size2-3, bHeightm+1) : PPSize(size2, bHeightm);
+	PPPoint locStop  = screen->getClassic() ? PPPoint(x2+2, y2+2+bHeight*2) : PPPoint(x2+size2, y2+2+bHeight);
+	PPSize  sizeStop = screen->getClassic() ? PPSize(size2-3, bHeightm+1) : PPSize(size, bHeightm);
 	button = new PPButton(BUTTON_SAMPLE_PLAY_STOP, screen, this, locStop, sizeStop);
 	button->setText( screen->getClassic() ? "Stop" : "\xa7" );
 	container->addControl(button);
@@ -564,13 +572,22 @@ void SectionSamples::init(pp_int32 x, pp_int32 y)
 	}
 	container->addControl(button);
 
-	button = new PPButton(BUTTON_SAMPLE_SYNTH_RAND, screen, this, PPPoint(x2+2 , y2+2+bHeight), PPSize( screen->getClassic() ? size2-3 : size-1, bHeightm));
-	button->setText( "\x0f" );
+	button = new PPButton(BUTTON_SAMPLE_SYNTH_PREV, screen, this, PPPoint(x2+2 , y2+2+bHeight), PPSize( screen->getClassic() ? size : size, bHeightm));
+	button->setText( "<" );
 	if( !screen->getClassic() ){
 		button->setColor(TrackerConfig::colorSampleEditorWaveform);
 		button->setTextColor(TrackerConfig::colorThemeMain);
 	}
 	container->addControl(button);
+
+	button = new PPButton(BUTTON_SAMPLE_SYNTH_NEXT, screen, this, PPPoint(x2+size , y2+2+bHeight), PPSize( size-1, bHeightm));
+	button->setText( ">" );
+	if( !screen->getClassic() ){
+		button->setColor(TrackerConfig::colorSampleEditorWaveform);
+		button->setTextColor(TrackerConfig::colorThemeMain);
+	}
+	container->addControl(button);
+
 	
 	button = new PPButton(BUTTON_SAMPLE_PLAY_RANGE, screen, this, PPPoint(x2+2 + size+size2-1, y2+2+bHeight), PPSize(size3, bHeightm));
 	button->setText( screen->getClassic() ? "Wav" : "\x10" );
@@ -591,12 +608,11 @@ void SectionSamples::init(pp_int32 x, pp_int32 y)
 
 	button = new PPButton(BUTTON_SAMPLE_RANGE_SHOW, screen, this, PPPoint(x2+2, y2+2), PPSize(size, bHeightm));
 	button->setText( screen->getClassic() ? "Show rng" : "zoom select");
-	if( !screen->getClassic() ) button->setFont( PPFont::getFont( PPFont::FONT_TINY) );
+	//if( !screen->getClassic() ) button->setFont( PPFont::getFont( PPFont::FONT_TINY) );
 	container->addControl(button);
 
 	button = new PPButton(BUTTON_SAMPLE_RANGE_ALL, screen, this, PPPoint(x2+2, y2+2+bHeight), PPSize(size, bHeightm));
 	button->setText( screen->getClassic() ? "Rng all" : "select all");
-	if( !screen->getClassic() ) button->setFont( PPFont::getFont( PPFont::FONT_TINY) );
 	container->addControl(button);
 	
 	pp_int32 h = button->getSize().width;
@@ -610,12 +626,10 @@ void SectionSamples::init(pp_int32 x, pp_int32 y)
 	container->addControl(button);
 
 	button = new PPButton(BUTTON_SAMPLE_RANGE_ZOOMOUT, screen, this, PPPoint(x2+2 + size+1, y2+2), PPSize(size, bHeightm));
-	if( !screen->getClassic() ) button->setFont( PPFont::getFont( PPFont::FONT_TINY) );
 	button->setText("Zoom out");
 	container->addControl(button);
 
 	button = new PPButton(BUTTON_SAMPLE_RANGE_SHOWALL, screen, this, PPPoint(x2+2 + size+1, y2+2+bHeight), PPSize(size, bHeightm));
-	if( !screen->getClassic() ) button->setFont( PPFont::getFont( PPFont::FONT_TINY) );
 	button->setText( screen->getClassic() ? "Show all" : "Zoom full");
 	container->addControl(button);
 
@@ -1263,11 +1277,11 @@ void SectionSamples::realUpdate(bool repaint, bool force, bool reAttach)
 	static_cast<PPButton*>(container7->getControlByID(BUTTON_SAMPLE_PLAY_WAVE))->setClickable(!sampleEditor->isEmptySample());	
 	static_cast<PPButton*>(container7->getControlByID(BUTTON_SAMPLE_PLAY_DISPLAY))->setClickable(!sampleEditor->isEmptySample());	
 	
-	static_cast<PPButton*>(container7->getControlByID(BUTTON_SAMPLE_SYNTH))->setClickable(
+	static_cast<PPButton*>(container7->getControlByID(BUTTON_SAMPLE_SYNTH_PREV))->setClickable(
 			sampleEditor->isEmptySample() || 
 			sampleEditor->wasGeneratedByMilkySynth() 
 	);
-	static_cast<PPButton*>(container7->getControlByID(BUTTON_SAMPLE_SYNTH_RAND))->setClickable(
+	static_cast<PPButton*>(container7->getControlByID(BUTTON_SAMPLE_SYNTH_NEXT))->setClickable(
 			sampleEditor->isEmptySample() || 
 			sampleEditor->wasGeneratedByMilkySynth() 
 	);
