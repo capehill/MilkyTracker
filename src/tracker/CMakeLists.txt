@@ -449,6 +449,10 @@ if(UNIX)
     endif()
 endif()
 
+if(AMIGA)
+    target_link_options(tracker PRIVATE "-athread=native")
+endif()
+
 # OS X and Windows install to the root of the prefix, the others install to bin
 if(APPLE OR WIN32)
     set(INSTALL_DEST .)

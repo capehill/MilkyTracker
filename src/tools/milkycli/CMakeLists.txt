@@ -12,6 +12,10 @@ target_link_libraries(milkycli
         commandlib
 )
 
+if(AMIGA)
+    target_link_options(milkycli PRIVATE "-athread=native")
+endif()
+
 install(TARGETS milkycli
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-) 
+)
